@@ -1,0 +1,161 @@
+VPX Script Optimization Guide
+===============================
+Context: VPX (Visual Pinball X) runs VBScript in a real-time game loop. The script controls
+lighting, sounds, scoring, physics helpers, and mode logic. Frame budget is ~16ms at 60 FPS.
+VBS is interpreted, single-threaded, and has no JIT — every operation costs what it costs,
+and the per-frame path is where all performance matters.
+
+
+GENERAL APPROACHES
+===================
+
+1. Eliminate string operations from per-frame code
+---------------------------------------------------
+VBS strings are immutable COM BSTRs. Every concatenation ("foo" & x) allocates a new string.
+Split() allocates an array of new strings. TypeName() does COM reflection and returns a new
+string. In a loop that runs 60-200 times per second, these add up fast.
+
+What to do:
+- Replace TypeName() checks with VarType() (returns an integer, no allocation)
+- Pre-build string IDs at init into arrays instead of concatenating per frame
+- If data is being stored as delimited strings and parsed with Split() every use,
+  restructure into parallel arrays or flat numeric buffers
+
+What to look for:
+- Any Split(), TypeName(), or string concatenation (&) inside a Sub/Function that runs
+  from a timer or per-frame callback (FrameTimer, LampTimer, RollingUpdate, etc.)
+- String-keyed Dictionary lookups in hot paths — replace with array indexing if possible
+
+
+2. Replace dictionary lookups with numeric array indexing
+----------------------------------------------------------
+VBS Dictionary objects do string hashing and comparison on every .Item() or .Exists() call.
+Array access by integer index is a direct memory offset.
+
+What to do:
+- Assign stable numeric IDs to objects at registration/init time
+- Store runtime state in parallel arrays indexed by those IDs
+- Keep the dictionary for init-time resolution (name → ID), but use IDs at runtime
+
+What to look for:
+- Dictionary .Item() or .Exists() calls inside per-frame loops
+- Repeated name-to-object resolution that could be done once and cached
+
+
+3. Avoid expensive math in comparison loops
+--------------------------------------------
+When finding the nearest N items from a list, you only need the actual distance for the
+winners. Squared distance (dx*dx + dy*dy) sorts identically to real distance but skips Sqr().
+
+What to do:
+- Compare distance-squared against threshold-squared in the search loop
+- Only Sqr() the final 1-2 winners that need real distance for downstream math
+- Pre-compute squared thresholds (falloff^2, etc.) once before the loop
+
+What to look for:
+- Any loop that calls Distance(), Sqr(), or similar per-element just to find min/max
+- DynamicBSUpdate, any spatial nearest-neighbor search, collision proximity checks
+
+
+4. Guard conditional writes
+----------------------------
+COM property writes (setting .color, .visible, .X, .Y on VPX objects) are expensive even
+when the value isn't changing. A simple integer comparison is nearly free.
+
+What to do:
+- Add "If obj.prop <> newVal Then obj.prop = newVal" guards
+- Especially for color assignments (Long integer compare is cheap)
+
+What to look for:
+- Blocks of unconditional property assignments in timer subs (LampTimer2, etc.)
+- Any loop that sets .visible, .color, .X, .Y, .rotz every frame without checking
+
+
+5. Reduce timer frequency where possible
+------------------------------------------
+A 5ms timer interval = 200Hz. For things like flasher polling, 100Hz (10ms) or even 66Hz
+(15ms) is visually indistinguishable but halves the call overhead.
+
+What to do:
+- Audit timer intervals against what they actually control
+- Flashers and GI: 10-15ms is fine. Faders: 16ms (frame-rate) is fine.
+- Physics-sensitive timers (flipper correction, ball tracking): leave alone
+
+What to look for:
+- Timer intervals under 10ms — ask whether the visual effect actually needs that rate
+- Timers that do IsArray() or other type checks every tick that could be cached at init
+
+
+6. Eliminate redundant COM calls
+---------------------------------
+GetBalls is a COM call that returns all ball objects. If two subs both call it per frame,
+that's two identical COM round-trips. Same applies to any VPX API call that returns the
+same data within a single frame.
+
+What to do:
+- Call once, store in a module-level variable, reuse across subs in the same frame
+- Cache object properties (position, state) in local variables when used multiple times
+
+What to look for:
+- GetBalls called from multiple per-frame subs
+- Reading the same object property (e.g., BallShadowA(s).X) multiple times in one sub
+  without caching in a local variable
+
+
+7. Move work from runtime to compile/init time
+------------------------------------------------
+If data can be resolved, expanded, or pre-computed once at init, don't redo it every frame.
+This is the core principle behind the darkchaos.vbs GLF rewrite.
+
+What to do:
+- Resolve string names to IDs at registration
+- Expand tags/tokens at show compile time, not playback time
+- Pre-compute lookup tables, threshold values, string IDs
+- Replace runtime object creation (fade shows, temporary arrays) with pre-allocated state
+
+What to look for:
+- Any init-time data (light names, sound names, show definitions) being re-resolved at
+  runtime
+- Object creation (New, CreateObject, ReDim) inside per-frame code
+- ReDim Preserve in loops — pre-allocate to max size instead
+
+
+SPECIFIC TO THE GLF FRAMEWORK (darkchaos.vbs)
+===============================================
+
+The GLF framework is a declarative DSL for pinball mode/show/light management built in VBS.
+It has ShowPlayer, LightPlayer, EventPlayer, SoundPlayer, Timers, Shots, etc. The rewrite
+targeted the light subsystem specifically.
+
+Key areas and what to watch:
+
+Priority stack behavior
+- Each light has a priority stack. Highest effective priority (mode_priority + entry_priority)
+  wins. When the top entry is removed, the next one down becomes visible.
+- Bug risk: removing or adding a non-top entry should NOT interrupt a visible fade on the
+  current top entry. The rewrite tightened this — verify that lower-priority pops don't
+  cause visual glitches.
+
+Fade system
+- Old: fades created synthetic child shows (fade_... running show instances)
+- New: fades are per-light state arrays advanced by the central game timer
+- Bug risk: fade interruption. If a new command targets a light mid-fade, the old fade
+  must stop cleanly and the new state must take over. Test overlapping fades on the same
+  light from different priority levels.
+
+Show teardown
+- Old: scanned all running shows for fade_... children
+- New: iterates cached light IDs and pops indexed stacks
+- Bug risk: lights not restoring to correct color after a show stops, especially when
+  multiple shows overlap on the same light group. Test: start two shows on the same lights
+  at different priorities, stop the higher one, verify the lower one's color is visible.
+
+Compiled command format
+- Both show steps and light-player events compile to the same flat buffer format:
+  [lightId, color, fadeDuration, fadeSteps] per command
+- Bug risk: if the compiler emits wrong IDs or wrong field order, the playback path will
+  set wrong lights or interpret color as duration. Any light that does something unexpected
+  after the rewrite — check the compiled buffer first.
+
+
+

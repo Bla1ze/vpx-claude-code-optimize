@@ -1,0 +1,131 @@
+dh.vbs Optimization Changes
+============================
+
+1. PRE-COMPUTED CONSTANTS (line ~4608)
+   Added module-level vars: DynBSFactor2, DynBSFactor3, BS_d10, BS_d4, BS_d5, BS_d2, TW_d2, BS_dAM.
+   Computed once at script load from existing constants (DynamicBSFactor, BallSize, tablewidth, AmbientMovement).
+   Eliminates repeated division and exponentiation inside per-frame loops.
+
+2. DynamicBSUpdate REWRITE (line ~4669)
+   - Cache gBOT(s).X/Y/Z into local vars bx/by/bz at top of each ball iteration.
+     Eliminates 10-15 COM property reads per ball per frame.
+   - Cache DSSources(iii)(0/1) into local sx/sy before inner source loop.
+     Eliminates double array dereference per light source.
+   - Distance-squared gate: compute dx*dx+dy*dy and compare against falloff^2.
+     DistanceFast() only called for balls actually within range, not every ball-source pair.
+   - Pre-computed invFalloff (1/falloff) replaces per-shadow division with multiplication.
+   - DynBSFactor2/DynBSFactor3 replace DynamicBSFactor^2 and ^3 per shadow.
+   - Cache UBound(gBOT) once at sub entry.
+   - Use pre-computed BS_d10/BS_d4/BS_d5/BS_d2/TW_d2/BS_dAM throughout ambient shadow math.
+
+3. RollingUpdate REWRITE (line ~6088)
+   - Pre-built BallRollStr() array at init ("BallRoll_0" through "BallRoll_6").
+     Eliminates "BallRoll_" & b string concatenation every 10ms tick per ball.
+   - Cache gBOT(b) as local var 'ball' via Set. Eliminates repeated COM object lookup.
+   - Cache ball.z and ball.VelZ into bz/bvz locals. Reused across multiple conditionals.
+   - Use pre-computed BS_d4/BS_d5/BS_d2 for static shadow height math.
+   - Cache UBound(gBOT) once at sub entry.
+
+4. updateMirroredBalls OPTIMIZATION (line ~1029)
+   - Pre-computed tanMSlope = tan(mSlope) at module level (constant value).
+     Eliminates tan() call every frame.
+   - Cache gBOT(i+1).y and .z into locals by/bz. Eliminates 4 redundant COM reads per ball.
+
+5. FLASHER VISIBILITY GUARDS — GameTimer_Timer (line ~869)
+   - Cache f140/f141.getinplaystatebool result into local bool.
+   - Guard .visible writes: only write when value differs from current.
+     Eliminates 4 unconditional COM writes per 10ms tick when flasher state is stable.
+
+6. DROP TARGET ANIMATION — FrameTimer_Timer (line ~1006)
+   - Cache BM_DropTarg1/2/3.rotx and .transz into local vars before For Each loops.
+     Reduces COM reads from 2*N per group (N=12-14 elements) to 2 per group.
+
+7. LCSeq PRE-COMPILED FRAMES (LCSeq class, line ~17373)
+   - Added m_compiled array, m_isCompiled flag, CompileFrames() method.
+   - Sequence setter now calls CompileFrames() at definition time.
+   - CompileFrames() pre-parses every frame's Split("|") and HexToInt() into parallel
+     arrays of names, levels, and pre-computed RGB color values.
+   - For lSeqAllLights5suck3 (28 frames x ~90 lights): eliminates ~90 Split, ~270 HexToInt,
+     ~270 Left/Mid/Right string ops per LampTimer tick during playback.
+   - Added IsCompiled and CompiledFrame(idx) properties for access from RunLightSeq.
+
+8. RunLightSeq COMPILED PATH (LStateController, line ~17195)
+   - When lcSeq.IsCompiled is True, indexes directly into pre-parsed arrays.
+     No Split(), no HexToInt(), no string manipulation at playback time.
+   - Original string-parsing path preserved as fallback for any non-compiled sequences.
+
+9. AssignStateForFrame IN-PLACE UPDATE (LStateController, line ~15992)
+   - Changed from Dictionary Remove+Add to Set .Item(key) = state for existing keys.
+     Eliminates one hash+dealloc+alloc cycle per call.
+   - Called 90+ times per tick during light sequences, and hundreds of times during
+     the "all off" blanking pass.
+
+10. SetLastLightState IN-PLACE UPDATE (LCSeq class, line ~17518)
+    - Same Remove+Add to in-place pattern as #9.
+    - Only removes key when level drops to 0 (key no longer needed).
+
+11. PRE-BUILT OFF-STATE CACHE (LStateController, line ~16219)
+    - BuildOffStateCache() runs once at end of RegisterLights().
+    - Pre-creates one FrameState(0, Null, idx) per registered light, stored in
+      parallel arrays m_offCacheNames/m_offCacheStates.
+    - AssignAllOffStates() iterates the cache with zero object allocation.
+    - Replaces the "iterate all lights + new FrameState per light" pattern in:
+      AddTableLightSeq, RemoveTableLightSeq, RemoveAllTableLightSeqs.
+    - Eliminates N object instantiations, N dictionary lookups (m_lights(key).Idx),
+      and 1 Keys() array allocation per call. Main beneficiary: scoop hit.
+
+12. ATTRACT MODE PERFORMANCE (lines ~932, ~16788) [IMPLEMENTED]
+    - animatebullets (line ~932): throttled to every 3rd frame via Mod 3 check.
+      Added lastBulletColor variable (line ~930); rgb() result cached and 7
+      LightColor COM calls skipped entirely when color hasn't changed.
+      Reduces ~420 LightColor calls/sec to ~23, and skips frames where color
+      is unchanged (e.g. when channel is already at target value).
+    - BLS blink loop (line ~16788): cached m_lights.Keys() into local cachedKeys
+      variable once at top of loop, eliminating repeated array allocation per pass.
+    - BLS blink loop: lights with Blink(idx,1) = 0 (fully off, no active blink)
+      now skip FrameState allocation entirely. Previously every off light still
+      created (new FrameState)(0, Null, ...) per tick. Eliminates the bulk of
+      ~5000 unnecessary object instantiations/sec during attract.
+    - NOT implemented: FrameState pre-allocation cache (would require invasive
+      refactor of FrameState class from new+init to reusable pattern).
+    - NOT implemented: PlayVPXSeq/SetGI throttling (attract loop iteration).
+
+13. UC STROBE TIMERS — "POLICE SIRENS" (lines ~19092-19174) [IMPLEMENTED]
+    - Added "If VRRoom = 0 Then Exit Sub" guard at top of UCAttractTimer_Timer.
+      Eliminates all state cycling and UCDOF calls when VR room is inactive.
+    - Replaced shared UCStrobeNum/UCStrobeCount with separate counter pairs:
+      UCShortStrobeRedNum/UCShortStrobeRedCount (red strobes) and existing
+      UCStrobeBlueNum/UCStrobeBlueCount (blue strobes). Prevents counter
+      corruption when multiple strobes overlap.
+    - UCAttractTimer_Timer now checks "If Not ...Timer.enabled" before starting
+      new strobes. States 1/3 only call UCShortStrobeBlue if
+      UCShortStrobeBlueTimer is not already running; state 5 only calls UCStrobe
+      if UCStrobeTimer is not already running. Prevents timer overlap.
+    - Collapsed UCShortStrobeTimer (10 flashes) and UCStrobeTimer (27 flashes)
+      into a single UCStrobeTimer with parameterized UCStrobeTarget variable.
+      UCShortStrobe() sets UCStrobeTarget = 10; UCStrobe() sets UCStrobeTarget = 27.
+      Both enable UCStrobeTimer. Eliminates one timer object entirely.
+
+14. LightLevel BLINK RECOMPILE REMOVAL (LStateController, line ~16449)
+    - Removed m_buildBlinkSeq + CompileFrames rebuild from LightLevel().
+      m_buildBlinkSeq always produces identical output (hardcoded |100/|0 from
+      BlinkPattern, which is constant). The rebuild was pure waste on every
+      SetGILevel sweep — N lights × M levels = N×M unnecessary CompileFrames calls.
+    - Now LightLevel only sets the LCItem.Level property, no sequence work.
+
+15. PRE-RESOLVED LIGHT INDICES FOR RunLightSeq (LCSeq + LStateController)
+    - Added m_resolved flag, ResolveLights(lightsDict) method to LCSeq class.
+    - ResolveLights pre-maps each compiled frame's light names to integer Idx values
+      and caches default light colors. Runs once per sequence, stored in compiled
+      frame data at indices 4 (cIdx) and 5 (cDefColors).
+    - RunLightSeq compiled path now has a resolved fast path (IsResolved = True):
+      skips m_lights.Exists() + m_lights(name) Dictionary lookups entirely.
+      For lSeqAllLights5suck3 (28 frames × ~90 lights): eliminates ~180 Dictionary
+      ops per LampTimer tick during playback.
+    - ResolveLights called eagerly from:
+      AddTableLightSeq (table-level override sequences),
+      AddShot (per-light shot sequences),
+      BlinkLight (per-light blink sequences).
+    - Compiled-but-not-resolved fallback path preserved for safety.
+    - Sequence property setter resets m_resolved = False so re-assignment triggers
+      fresh resolution on next use.

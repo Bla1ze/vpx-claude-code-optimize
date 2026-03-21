@@ -1,0 +1,23 @@
+You are optimizing a VPX (Visual Pinball X) VBScript table script for real-time performance. Read these reference files first, and offer a ranked list of optimization targets and their likely performance impact before coding anything:
+
+- `optimization-guide.txt` — general VPX/VBS optimization principles
+- `dhChanges.txt` — concrete examples of every optimization applied to a similar table (darkchaos.vbs), with line references and measured impact
+- `CLAUDE.md` — the "VBScript Performance Optimization Rules" section covers language traps that WILL bite you (especially the Variant array self-reference bug and Dictionary elimination pattern)
+- 'distilled-guidance.txt' - Additional guidance
+
+**Your task:** Analyze `[table].vbs` and apply the same optimization passes in priority order:
+
+1. **Find the hot loops** — search for timer subs (`_Timer`), `Update`, `RollingUpdate`, `DynamicBSUpdate`, any sub called at 10ms+ frequency. These are your targets. Ignore init code and event handlers.
+2. **Dictionary → indexed arrays** — any `Scripting.Dictionary` `.Exists()` or `.Item()` inside a hot loop. Pre-resolve string keys to integer indices at init/registration time.
+3. **COM property caching** — any `gBOT(x).X`, `.Y`, `.Z`, `.visible`, `.color` read more than once per iteration. Cache into local vars.
+4. **String ops in hot paths** — Split(), string concatenation (`&`), TypeName() inside timers. Pre-build at init.
+5. **Redundant writes** — guard `.visible`, `.color` writes with `If newVal <> current Then`.
+6. **Object allocation in loops** — `(new ClassName)` inside per-tick code. Pre-allocate caches at init.
+7. **Lazy init that should be eager** — trace every cache's call chain. If it's populated during gameplay instead of at script load / Table1_Init, move it earlier.
+
+**Critical VBScript rules that will cause runtime errors if violated:**
+- Never `arr(i) = Array(arr(i)(0), ...)` — cache `Dim old: old = arr(i)` first, then `arr(i) = Array(old(0), ...)`
+- Arrays are VALUE types in Variants — modifying a copy doesn't modify the original
+- Use `.Item(key) = value` for in-place Dictionary updates, not `.Remove` + `.Add`
+
+Document every change in the same format as `dhChanges.txt`: what changed, where, why, and what it eliminates (quantify per-tick savings where possible).

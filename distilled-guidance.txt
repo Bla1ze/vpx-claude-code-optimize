@@ -1,0 +1,832 @@
+VPX VBScript Table Optimization — Distilled Technical Reference
+================================================================
+
+CONTEXT: VPX runs VBScript in a real-time game loop. VBS is interpreted,
+single-threaded, no JIT. Frame budget is ~16ms at 60fps. Every per-frame
+operation is multiplied by ball count × light count × source count.
+
+PROFILE BY MULTIPLICATION: A simple op called 90× per tick at 100Hz =
+9,000/sec. A complex op called once per ball start = irrelevant.
+Always ask: "how many times per second does this line execute?"
+
+HOT PATHS (descending heat):
+  LampFader.Update / LStateController.Update  — every frame × every light (60-140)
+  DynamicBSUpdate / BSUpdate                  — every frame × every ball × every source
+  RollingUpdate                               — every 10ms × every ball
+  RightFlipper_Timer                          — often 1ms (1000Hz!) for FlipperTricks/Nudge
+  FlashFlasher                                — per flasher per fade tick (100+ calls/sec)
+  GameTimer_Timer / FrameTimer_Timer          — 10ms / every frame
+  RampRollUpdate                              — 10ms × active ramp balls
+
+IGNORE: Table1_Init, mode creation subs, switch-hit event handlers (<15/sec),
+code behind conditional guards, one-shot init code.
+
+
+====================================================================
+FIXES — IN PRIORITY ORDER
+====================================================================
+
+
+FIX 1: FLIPPER TIMER 1ms → 10ms + SHARED GetBalls + PRESS GUARD
+-----------------------------------------------------------------
+SEARCH: `.timerinterval = 1` near FlipperTricks/FlipperNudge code.
+SEARCH: `GetBalls` inside FlipperNudge.
+
+VPX renders at 60fps. Flipper correction at 100Hz is visually identical
+to 1000Hz. This single change eliminates 4500 function calls/sec.
+
+CHANGE timer interval:
+  RightFlipper.timerinterval = 10        ' was 1
+
+ADD press guard + shared GetBalls in the timer sub:
+  Sub RightFlipper_Timer
+      FlipperTricks ...
+      FlipperTricks ...
+      If LFPress = 0 And RFPress = 0 Then Exit Sub
+      Dim fBOT : fBOT = GetBalls
+      FlipperNudge fBOT, LeftFlipper, ...
+      FlipperNudge fBOT, RightFlipper, ...
+  End Sub
+
+CHANGE FlipperNudge signature to accept BOT array as first parameter.
+Remove GetBalls call inside FlipperNudge.
+
+SAVES: ~4500 function calls/sec + ~1000 GetBalls allocs/sec.
+When flippers at rest: eliminates 100% of GetBalls + FlipperNudge COM reads.
+
+
+FIX 2: FlipperTricks — CACHE startangle AND currentangle
+----------------------------------------------------------
+SEARCH: `Sub FlipperTricks`
+
+BEFORE:
+  Dir = Flipper.startangle / Abs(Flipper.startangle)
+  If Abs(Flipper.currentangle) > Abs(Flipper.startangle) - 0.05 Then
+
+AFTER:
+  Dim sa : sa = Flipper.startangle
+  Dim Dir : Dir = sa / Abs(sa)
+  Dim ca : ca = Abs(Flipper.currentangle)
+  Dim absSa : absSa = Abs(sa)
+  If ca > absSa - 0.05 Then
+
+Replace every Abs(Flipper.currentangle) with ca, every Abs(Flipper.startangle)
+with absSa throughout the sub. Leave Flipper.endangle reads alone (it can
+change mid-sub).
+
+SAVES: ~10,000+ COM reads/sec at 1000Hz (startangle is constant but still a
+COM read; currentangle read 4× per call).
+
+
+FIX 3: FlipperNudge — CACHE currentangle
+------------------------------------------
+SEARCH: `Sub FlipperNudge`
+
+ADD at top (after BOT parameter):
+  Dim ca1 : ca1 = Flipper1.currentangle
+
+REPLACE all Flipper1.currentangle with ca1. Also cache BOT(b).x/y into
+locals bx/by before FlipperTrigger calls in the ball loop.
+
+SAVES: ~4,000 COM reads/sec.
+
+
+FIX 4: FlipperTrigger — INLINE DistanceFromFlipper, CACHE ALL FLIPPER PROPS
+-----------------------------------------------------------------------------
+SEARCH: `Function FlipperTrigger`
+
+This is the highest-value single fix. The standard code reads Flipper.x/.y/
+.currentangle 6-10 times across FlipperTrigger + DistanceFromFlipper +
+AnglePP + Distance.
+
+REPLACE with (requires PIover180/d180overPI from Fix 6, and Atn2 function):
+  Function FlipperTrigger(ballx, bally, Flipper)
+      Dim fx, fy, fca, flen, frad, dfl, DiffAngle
+      fx = Flipper.x : fy = Flipper.y
+      fca = Flipper.currentangle : flen = Flipper.Length
+      frad = (fca + 90) * PIover180
+      DiffAngle = Abs(fca - Atn2((bally-fy),(ballx-fx))*d180overPI - 90)
+      If DiffAngle > 180 Then DiffAngle = DiffAngle - 360
+      dfl = DistancePL(ballx,bally,fx,fy,Cos(frad)+fx,Sin(frad)+fy)
+      If dfl < 48 And DiffAngle <= 90 And Distance(ballx,bally,fx,fy) < flen Then
+          FlipperTrigger = True
+      Else
+          FlipperTrigger = False
+      End If
+  End Function
+
+Leave DistanceFromFlipper intact (other code may call it). If Atn2 doesn't
+exist in the file, just cache the flipper props and still call AnglePP with
+cached locals.
+
+SAVES: ~30,000 COM reads/sec at 1000Hz with 4+ balls.
+
+
+FIX 5: Distance — ^2 → x*x
+-----------------------------
+SEARCH: `Function Distance`
+
+BEFORE: Distance = Sqr((ax - bx) ^ 2 + (ay - by) ^ 2)
+AFTER:
+  Dim dx, dy : dx = ax - bx : dy = ay - by
+  Distance = Sqr(dx * dx + dy * dy)
+
+
+FIX 6: PRE-COMPUTED TRIG CONSTANTS
+------------------------------------
+SEARCH: `PI = 4 * Atn(1)` or `Dim PI`
+
+ADD after PI declaration:
+  Dim PIover180 : PIover180 = PI / 180
+  Dim d180overPI : d180overPI = 180 / PI
+
+REPLACE in dSin, dCos, Radians:  `* Pi / 180`  →  `* PIover180`
+REPLACE in AnglePP:              `* 180 / PI`   →  `* d180overPI`
+
+SAVES: 2 divisions per trig call. At 1000Hz from FlipperTrigger, ~8000
+divisions/sec eliminated.
+
+
+FIX 7: AUDIO FUNCTIONS — ELIMINATE ALL EXPONENTIATION
+------------------------------------------------------
+SEARCH: `^ 10` in AudioFade, AudioPan. `^ 2` in BallVel, Vol, Volz.
+`^ 3` in VolPlayfieldRoll. `^ 2` in PitchPlayfieldRoll, BallSpeed.
+
+^10 pattern (AudioFade/AudioPan):
+  BEFORE: AudioFade = CSng(tmp ^ 10)
+  AFTER:
+    Dim t2,t4,t8 : t2=tmp*tmp : t4=t2*t2 : t8=t4*t4
+    AudioFade = CSng(t8 * t2)
+  (Handle negative branch separately: nt=-tmp, same chain, negate result.)
+
+^2 pattern (BallVel):
+  BEFORE: BallVel = Int(Sqr((ball.VelX ^ 2) + (ball.VelY ^ 2)))
+  AFTER:
+    Dim vx,vy : vx = ball.VelX : vy = ball.VelY
+    BallVel = Int(Sqr(vx*vx + vy*vy))
+
+^2 pattern (Vol):
+  Dim bv : bv = BallVel(ball) : Vol = CSng(bv * bv)
+
+^3 pattern (VolPlayfieldRoll):
+  Dim bv : bv = BallVel(ball) : VolPlayfieldRoll = ... * CSng(bv*bv*bv)
+
+^2 pattern (BallSpeed):
+  Dim vx,vy,vz : vx=ball.VelX : vy=ball.VelY : vz=ball.VelZ
+  BallSpeed = Sqr(vx*vx + vy*vy + vz*vz)
+
+^2.5 pattern (FlashFlasher): lvl2 * Sqr(lvl)
+^0.5: use Sqr()
+^0.2 (for fade halos): linear approx (0.8 + 0.2*lvl) is visually equivalent
+^1.6 (LampFilter): use lookup table (see Fix 18)
+
+ALSO grep `\^` across the entire file for stragglers:
+  TargetBouncer vel^2 / vratio^2, OnBallBallCollision velocity^2,
+  KTAnimate velx^2+vely^2, DynamicBSFactor^3, GI ^0.8/^0.5 (cache at setter).
+
+
+FIX 8: PRE-BUILT STRING ARRAYS
+--------------------------------
+SEARCH: `"BallRoll_" &` inside RollingUpdate.
+SEARCH: `"RampLoop" &` and `"wireloop" &` inside RampRollUpdate.
+SEARCH: `"Flashermaterial" &` or `"FlasherMat_" &` in FlashFlasher.
+
+ADD at module level (near ball shadow arrays):
+  Dim BallRollStr(N)       ' N = tnob or max ball count
+  Dim brsI : For brsI = 0 To N : BallRollStr(brsI) = "BallRoll_" & brsI : Next
+
+  Dim RampLoopStr(6), WireLoopStr(6)
+  Dim rlsI : For rlsI = 1 To 6
+      RampLoopStr(rlsI) = "RampLoop" & rlsI
+      WireLoopStr(rlsI) = "wireloop" & rlsI
+  Next
+
+  Dim FlasherMatStr(20)
+  Dim fmsI : For fmsI = 0 To 20 : FlasherMatStr(fmsI) = "Flashermaterial" & fmsI : Next
+
+REPLACE all concatenations with array lookups in hot paths.
+Also pre-build any other per-tick string patterns: animation frame names,
+cellar light names, bumper texture names, LED image names, etc.
+
+SAVES: 5 balls × 3 sites × 100Hz = ~1500 string allocs/sec from
+RollingUpdate alone. Bumper frenzy: ~30 allocs/tick. Flashers: ~500/sec.
+
+
+FIX 9: COM PROPERTY CACHING IN HOT LOOPS
+------------------------------------------
+Pattern: cache gBOT(b).X/Y/Z and any other repeated COM reads into locals
+at the top of each loop iteration.
+
+  ' BEFORE: 15+ COM reads per ball per frame
+  dx = gBOT(s).X - DSSources(iii)(0)
+  dy = gBOT(s).Y - DSSources(iii)(1)
+  If gBOT(s).Z < 30 Then objBallShadow(s).X = gBOT(s).X  ' 4th read of .X
+
+  ' AFTER: 3 COM reads, rest are locals
+  Dim bx : bx = gBOT(s).X
+  Dim by : by = gBOT(s).Y
+  Dim bz : bz = gBOT(s).Z
+  dx = bx - sx : dy = by - sy
+  If bz < 30 Then objBallShadow(s).X = bx
+
+APPLY TO: DynamicBSUpdate/BSUpdate (bx/by/bz per ball), RollingUpdate
+(Set ball = gBOT(b), then bz/bvz/bx/by), RampRollUpdate (Set rb =
+RampBalls(x,0)), FlipperTricks/FlipperNudge (currentangle/startangle),
+FlashFlasher (ObjLevel into local), LampTimer (chglamp(ii,0)/chglamp(ii,1)
+into cIdx/cVal), GameTimer flasher visibility (.getinplaystatebool), any
+sub reading the same COM property 2+ times.
+
+ALSO CACHE: UBound(gBOT) once at sub entry. It's a function call per use.
+ALSO CACHE: DSSources(iii)(0)/(1) into sx/sy in inner source loops.
+
+NOTE: Ball objects (gBOT(b)) CAN be Set-cached into locals.
+VPX primitives in Variant arrays (objBallShadow(s)) CANNOT — they throw
+Type mismatch on Set. Cache their properties instead.
+
+SAVES: DynamicBSUpdate: 3000-6000 COM reads/sec. RollingUpdate: 3000-4000.
+FlipperTricks at 1000Hz: ~12,000. Per table: 10,000-50,000 COM reads/sec.
+
+
+FIX 10: COM WRITE GUARDS (DELTA WRITES)
+-----------------------------------------
+Only write a COM property when the value actually changes. A simple integer
+compare is nearly free; a redundant COM write is expensive.
+
+  ' .visible guard
+  If objBallShadow(s).visible <> newVis Then objBallShadow(s).visible = newVis
+
+  ' .RotZ guard (flipper bats)
+  Dim aLF : aLF = LeftFlipper.CurrentAngle
+  If aLF <> lastLFAngle Then lastLFAngle = aLF : LeftBat.ObjRotZ = aLF
+
+  ' .color guard
+  Dim newcol : newcol = RGB(...)
+  If CLng(BOT(b).Color) <> CLng(newcol) Then BOT(b).Color = newcol
+
+  ' Flasher UpdateMaterial guard (most expensive — GPU shader update)
+  If Abs(lvl - LastFlasherWriteLvl(nr)) > 0.02 Then
+      ' only compute Sqr/multiplications and call UpdateMaterial here
+      LastFlasherWriteLvl(nr) = lvl
+  End If
+
+APPLY TO: shadow .visible, flipper bat/shadow .RotZ/.ObjRotZ, ball .color,
+flasher .opacity and UpdateMaterial, GI animate (guard with last intensity),
+standup target .transy, LED display pixels, lamp .IntensityScale.
+
+Add module-level tracking vars (lastLFAngle, lastRFAngle, lastBallColor(N),
+LEDStateCache(N), etc.) initialized to sentinel values (-1 or -9999).
+
+SAVES: Flippers at rest: ~288 COM writes/sec. GI stable: ~720 round-trips/sec.
+LED display: 42,000 → 6,000 COM writes/sec with delta + throttle.
+
+
+FIX 11: PRE-COMPUTED MODULE-LEVEL CONSTANTS
+---------------------------------------------
+Any expression of constants can be computed once at script load.
+
+  Dim BS_dAM : BS_dAM = BallSize / AmbientMovement
+  Dim TW_d2 : TW_d2 = tablewidth / 2
+  Dim BS_d10 : BS_d10 = BallSize / 10
+  Dim BS_d5 : BS_d5 = BallSize / 5
+  Dim BS_d4 : BS_d4 = BallSize / 4
+  Dim BS_d2 : BS_d2 = BallSize / 2
+  Dim DynBSFactor3 : DynBSFactor3 = DynamicBSFactor * DynamicBSFactor * DynamicBSFactor
+  Dim DSFalloffSq : DSFalloffSq = DSFalloff * DSFalloff
+  Dim DSInvFalloff : DSInvFalloff = 1 / DSFalloff
+  Dim BallRollVol : BallRollVol = BallRollVolume * VolumeDial
+  Dim RampRollVol : RampRollVol = RampRollVolume * VolumeDial
+  Dim RGBWhite : RGBWhite = RGB(255,255,255)
+
+Replace inline division with multiplication by pre-computed inverse:
+  BEFORE: opacity = 1 - dist / falloff
+  AFTER:  opacity = 1 - dist * DSInvFalloff
+
+Constant trig for fixed angles (e.g. JP MotorTimer):
+  Dim cosCenter : cosCenter = cos(Radians(180 - trexcenterangle))  ' once
+  ' timer uses cosCenter directly instead of cos() per tick
+
+SAVES: 2-6 divisions per ball per frame eliminated. DynBSFactor^3 eliminated.
+
+
+FIX 12: DISTANCE-SQUARED GATING IN DynamicBSUpdate
+----------------------------------------------------
+Most light sources are far from any given ball. Computing Sqr() for distant
+sources is wasted.
+
+  Dim DSFalloffSq : DSFalloffSq = DSFalloff * DSFalloff   ' at module level
+
+  ' In source loop:
+  Dim dsq : dsq = dx*dx + dy*dy
+  If dsq > DSFalloffSq Then
+      LSd = DSFalloff       ' out of range, skip Sqr
+  Else
+      LSd = Sqr(dsq)
+  End If
+
+With 5 balls × 15 sources, skips Sqr() for ~12-13 of 15 sources per ball.
+SAVES: ~60 Sqr() calls/frame.
+
+
+FIX 13: DICTIONARY ELIMINATION IN HOT LOOPS
+---------------------------------------------
+Scripting.Dictionary: .Exists(key) + .Item(key) = 2 hash lookups per access.
+.Keys() allocates a full array copy every call.
+
+PATTERN A — Replace Dictionary with integer-indexed arrays:
+  BEFORE: rampType = bsDict.Item(ballId)       ' hash lookup
+  AFTER:  rampType = bsRampTypes(ballId)        ' array index
+
+PATTERN B — Pre-resolve string names to integer indices at init:
+  ' At compile/init time (once):
+  cIdx = m_lights(cName).Idx
+  ' At playback (per frame): skip Dictionary entirely
+  Set lcItem = m_lightsArray(cIdx)
+
+PATTERN C — Cache .Keys() before iterating:
+  Dim cachedKeys : cachedKeys = myDict.Keys()
+  For Each k In cachedKeys
+
+PATTERN D — In-place update (1 hash op instead of 2):
+  BEFORE: myDict.Remove key : myDict.Add key, newValue
+  AFTER:  Set myDict.Item(key) = newValue    ' for objects
+          myDict.Item(key) = newValue         ' for scalars
+
+PATTERN E — .Count > 0 instead of UBound(.Keys()) > -1:
+  .Count is a direct integer read. .Keys() allocates a full array just to
+  check emptiness.
+
+
+FIX 14: LAMPFILTER ^1.6 → LOOKUP TABLE
+-----------------------------------------
+If the table has a LampFilter function with ^1.6 (or any fractional
+exponent on a bounded 0-1 input):
+
+  ' At module level (runs once):
+  Dim LampFilterLUT(100)
+  Dim lfI : For lfI = 0 To 100 : LampFilterLUT(lfI) = (lfI/100)^1.6 : Next
+
+  ' Hot path replacement:
+  Function LampFilter(aLvl)
+      If aLvl <= 0 Then LampFilter = 0 : Exit Function
+      If aLvl >= 1 Then LampFilter = 1 : Exit Function
+      LampFilter = LampFilterLUT(Int(aLvl * 100))
+  End Function
+
+One Int() + one array lookup replaces Exp(1.6*Log(x)).
+SAVES: 1,800-9,000 ^1.6 ops/sec with 30+ active lamps.
+
+
+FIX 15: CoRTracker — PRE-ALLOCATE ARRAYS, USE gBOT
+----------------------------------------------------
+SEARCH: `Class CoRTracker` or `Cor.Update` or `Class_Initialize` with
+`ReDim ballvel(0)`.
+
+  ' Class_Initialize: pre-allocate to max ball count
+  ReDim ballvel(tnob) : ReDim ballvelx(tnob) : ReDim ballvely(tnob)
+
+  ' Update: use gBOT instead of GetBalls, single pass
+  Public Sub Update()
+      Dim b, BOT, bid : BOT = gBOT
+      If UBound(BOT) = -1 Then Exit Sub
+      For b = 0 To UBound(BOT)
+          bid = BOT(b).id
+          If bid <= tnob Then
+              ballvel(bid) = BallSpeed(BOT(b))
+              ballvelx(bid) = BOT(b).velx
+              ballvely(bid) = BOT(b).vely
+          End If
+      Next
+  End Sub
+
+PREREQUISITE: Table must have gBOT maintained (search for `gBOT =`).
+SAVES: 100 GetBalls calls/sec + 300 ReDim checks/sec.
+
+
+FIX 16: ELIMINATE Execute/Eval IN HOT PATHS
+---------------------------------------------
+Execute parses and compiles a string at runtime. Catastrophically expensive
+when called per-event.
+
+SEARCH: `Execute "set` or `Execute "Set` inside any sub that fires more
+than once per second.
+
+PATTERN: Pre-resolve at init using Execute once, store in arrays:
+  ' Init (runs once)
+  Dim vLightMap(100), pLightMap(100)
+  For i = 0 To UBound(LightMap)
+      Execute "Set vLightMap(" & i & ") = v" & LightMap(i).name
+  Next
+
+  ' Hot path (zero Execute)
+  Set vL = vLightMap(idx)
+
+Iron Maiden: eliminated ~900 Execute calls/sec from spinner hits.
+
+
+FIX 17: ELIMINATE TypeName() AND debug.print
+----------------------------------------------
+TypeName() does COM reflection + string allocation. NEVER use in per-frame code.
+
+SEARCH: `TypeName(` in any timer sub, Update, or per-frame loop.
+DELETE or comment out. These are always leftover debug assertions.
+
+debug.print: allocates COM strings and writes to debug output. Remove or gate
+at the CALL SITE (VBScript evaluates args before the call):
+  ' WRONG: string concat still happens inside WriteToLog
+  ' RIGHT:
+  If KeepLogs Then WriteToLog "     ", "text:" & var1
+
+SAVES: TypeName in LampFader: ~16,800 string allocs/sec.
+
+
+FIX 18: TIMER INTERVAL TUNING
+-------------------------------
+FLIPPER: 1ms → 10ms (see Fix 1). 100Hz is visually identical to 1000Hz.
+
+FLASHER: Set flasher timer interval to 30ms (33Hz) in InitFlasher.
+  objflasher(nr).TimerInterval = 30
+  Flasher fades are smooth at 33Hz.
+
+LAMP TIMER: Can often halve frequency (e.g. 16ms → 32ms) if you double all
+FadeSpeedUp/FadeSpeedDown values to maintain identical wall-clock timing.
+
+GI FADE: 6ms → 16ms with larger step size. Adjust increment proportionally
+(e.g. ±2 at 6ms → ±5 at 16ms for same fade duration).
+
+LED/DMD THROTTLE: Cap UpdateLeds to 30-40Hz:
+  If gametime - lastLedUpdate < 33 Then Exit Sub
+  lastLedUpdate = gametime
+
+
+FIX 19: ACTIVE-COUNT FAST EXIT
+--------------------------------
+When a fixed-size array (140 lamps, 40+ inserts) is iterated every frame but
+only a few entries are active, track active count and skip the entire loop
+when count = 0.
+
+  Dim ActiveLamps : ActiveLamps = 0
+  ' increment when entry becomes active
+  ' decrement when entry finishes
+
+  Sub Update()
+      If ActiveLamps = 0 Then Exit Sub    ' single integer compare
+      ' ... iterate 140 entries
+  End Sub
+
+SPP: eliminated 8,400 iterations/sec (141 × 60fps) during normal play.
+Wind: PfInsertActiveCount guards the 40+ insert fade scan.
+
+
+FIX 20: PRE-COMPILED LIGHT SEQUENCES (GLF/LStateController tables)
+--------------------------------------------------------------------
+If the table uses LCSeq or light sequence playback with Split("|") per
+light per frame:
+
+  ' At definition time (once per sequence):
+  CompileFrames() pre-parses Split("|") + HexToInt into structured arrays.
+
+  ' At playback: index into pre-parsed arrays, zero string ops.
+
+ADVANCED: Pre-resolve light names to integer indices. Eliminates
+Dictionary.Exists() + .Item() from the playback path entirely.
+
+SAVES: 90 Split + 270 HexToInt + 180 Dictionary ops per tick during playback.
+
+
+FIX 21: CACHED GetRef FUNCTION POINTERS
+-----------------------------------------
+If the table uses Proc(name & idx, value) with GetRef for lamp callbacks:
+
+  ' At registration (once):
+  Set cCallbackRef(idx) = GetRef(name & idx)
+
+  ' Per frame (zero GetRef, zero string concat):
+  cCallbackRef(x) value
+
+SAVES: N GetRef lookups + N string concats per frame (N = callback lamps).
+
+
+FIX 22: GI ANIMATE GUARDS
+---------------------------
+SEARCH: `GIMiddleLight_Animate`, `GIUpperLight_Animate`, `GiOn`, `GiOff`.
+
+Add module-level last-value tracking. Early-exit when intensity unchanged:
+  If s = lastGIMidS Then Exit Sub
+  lastGIMidS = s
+
+During stable GI (majority of gameplay): skips all downstream COM writes.
+For GI fade timers: replace read-modify-write (obj.Opacity = obj.Opacity ± step)
+with a single module-level variable incremented once, written to all objects.
+
+SAVES: ~720 COM round-trips/sec when GI stable.
+
+
+FIX 23: SOUND PREWARMING
+--------------------------
+VPX decodes audio on first play, causing frame hitches in early balls.
+
+FINDING ALL SOUNDS: Single grep to capture every sound reference:
+  PlaySound|StopSound|SoundFX\(
+Run with output_mode "content" to get every line. Deduplicate the quoted
+string names from the results. Watch for:
+  - Direct literals: PlaySound "name", StopSound "name"
+  - SoundFX() wrapped: SoundFX("name", DOFContactors)
+  - Variable-assigned: snd = "Ball_Collide_1" ... PlaySound snd
+  - Rnd-concatenated: "Flipper_L0" & Int(Rnd * 9) + 1  → expand the range
+  - Pre-built arrays: BallRollStr(i) → find where the array is built
+
+  Sub PrewarmSounds()
+      PlaySound "Flipper_Attack-L01", 0, 0, 0, 0.25
+      ' ... every unique sound name in the table
+  End Sub
+  vpmtimer.addtimer 1500, "PrewarmSounds '"
+
+One-shot cost at startup. Eliminates all first-play decode stutter.
+
+
+FIX 24: FlashFlasher OPTIMIZATION
+-----------------------------------
+SEARCH: `Sub FlashFlasher`
+
+Cache ObjLevel(nr) into local lvl at top. Pre-compute:
+  lvl2 = lvl * lvl
+  lvl3 = lvl2 * lvl
+  lvl25 = lvl2 * Sqr(lvl)     ' was ^2.5
+
+Replace all ^3 with lvl3, ^2 with lvl2, ^2.5 with lvl25.
+Replace ^0.2 with (0.8 + 0.2*lvl) — linear approx, visually equivalent.
+Pre-build FlasherMatStr() array for "Flashermaterial" & nr.
+Use pre-computed RGBWhite = RGB(255,255,255) for UpdateMaterial calls.
+
+ADVANCED (SPP): Add delta guard — only compute power calcs and write COM
+when Abs(lvl - lastWrittenLvl) > 0.02. Skip entirely for imperceptible changes.
+Add VBScript-side timer bool to avoid COM TimerEnabled read.
+
+SAVES: 5 flashers × 100Hz = 500 calls/sec. Each saves 4-7 exponentiation
+ops + 1 string concat + 5-8 COM writes (when guarded).
+
+
+FIX 25: LAMPFADER OPTIMIZATION (tables with LampFader class)
+--------------------------------------------------------------
+SEARCH: `Class LampFader` or `LampTimer2_Timer`.
+
+- Hoist UseFunction check outside the 140-iteration loop into a local.
+- Pre-compute Lvl(x)*Mult(x) once into local, reuse for array and callback.
+- Pre-cache IsArray flag and first-object reference at registration time
+  (eliminates IsArray() + array copy per lamp per frame).
+- Add ActiveLamps/FadingLamps counters for fast-exit (see Fix 19).
+- Add delta guard: skip IntensityScale write + callback when lm unchanged.
+- Inline cFilter/LampFilter as direct LUT lookup (see Fix 14).
+- Cache GetRef results at registration time (see Fix 21).
+
+
+FIX 26: STALE TIMER GENERATION GUARDS (PUP/media tables)
+----------------------------------------------------------
+If the table uses vpmtimer.addtimer for delayed media commands:
+
+  Dim mediaGen(20)    ' generation counter per channel
+
+  Sub playmedia(channel, ...)
+      mediaGen(channel) = mediaGen(channel) + 1
+      Dim gen : gen = mediaGen(channel)
+      vpmtimer.addtimer delay, "PupDelayedStop " & channel & "," & gen & " '"
+  End Sub
+
+  Sub PupDelayedStop(channel, gen)
+      If gen <> mediaGen(channel) Then Exit Sub    ' stale, skip
+      PuPlayer.playstop channel
+  End Sub
+
+Apply to ALL delayed callbacks that interact with stateful external systems.
+Eliminates entire class of race-condition crashes.
+
+
+FIX 27: INSERT FADE LOOP RESTRUCTURE (PinMAME tables with LampTimer)
+----------------------------------------------------------------------
+SEARCH: `PfInsertChange` or insert fade loop in LampTimer_Timer.
+
+- Add PfInsertActiveCount tracking variable.
+- Guard entire fade scan loop: If PfInsertActiveCount > 0 Then ...
+- Increment count when PfInsertChange(i) goes True.
+- Decrement count when fade completes (abs < 0.01).
+- Move bumper/cellar routing OUT of the fade loop into the ChangedLamps
+  handler (they set PfInsertChange but never clear it = perpetual waste).
+
+SAVES: When no inserts fading: 40+ array reads + boolean checks per tick
+skipped entirely.
+
+
+FIX 28: CStr() → CLng() FOR COLOR COMPARISON
+-----------------------------------------------
+SEARCH: `CStr(` in any per-frame light rendering loop.
+
+  BEFORE: If Not CStr(tmpLight.Color) = CStr(c) Then   ' 2 string allocs
+  AFTER:  If CLng(refLight.Color) <> CLng(c) Then       ' stack-only int
+
+VPX colors are Long integers. CLng() is a stack conversion, zero allocation.
+SAVES: 24,000-36,000 string allocs/sec at 60-90 lights × 100fps.
+
+
+FIX 29: LAMPTIMER LAMP-STORM CLEANUP
+--------------------------------------
+When lamps fire rapidly (multiball light shows, attract mode, GI transitions),
+LampTimer_Timer becomes the dominant CPU consumer. It fires on every PinMAME
+lamp change batch — during storms that can be 50-100+ times/sec. Every wasted
+operation inside it is multiplied by storm frequency × lamps-per-batch.
+
+PROBLEM 1: DUPLICATE RollingUpdate() CALL
+Many tables have `RollingUpdate()` or `RollingSoundUpdate()` at the end of
+LampTimer_Timer. GameTimer_Timer ALREADY calls it at 10ms (100Hz). The
+LampTimer call is pure waste — it runs the ENTIRE rolling sound path
+(BallVel per ball, AudioFade/AudioPan per ball, PlaySound per ball) again
+on every lamp batch. During storms this can DOUBLE the rolling sound cost.
+
+SEARCH: `RollingUpdate` or `RollingSoundUpdate` inside LampTimer_Timer.
+ACTION: DELETE the call. GameTimer handles rolling sounds independently.
+
+IMPACT: During lamp storms with 3 balls: eliminates 150-300+ redundant
+BallVel calls/sec + 150-300 AudioFade ^10 + 150-300 AudioPan ^10 +
+150-300 PlaySound COM calls per second. This is often THE #1 fix for
+lamp-storm slowdowns.
+
+PROBLEM 2: 2D ARRAY chglamp(ii,0)/chglamp(ii,1) READ EVERY USE
+Controller.ChangedLamps returns a 2D Variant array. Each chglamp(ii,0) and
+chglamp(ii,1) is a 2D dereference — expensive in VBScript. In a Select Case
+with 5+ branches, the same index gets read 2-5 times per lamp per tick.
+
+SEARCH: `chglamp(ii,0)` and `chglamp(ii,1)` inside LampTimer_Timer.
+ACTION: Cache into locals at loop top:
+  Dim cIdx, cVal
+  For ii = 0 To UBound(chgLamp)
+      cIdx = chglamp(ii,0) : cVal = chglamp(ii,1)
+      Select Case cIdx
+          Case 12 : PFLights(cIdx,0).state = cVal : ...
+
+IMPACT: With 20 lamp changes per batch: eliminates 40-100 redundant 2D
+array dereferences per LampTimer tick.
+
+PROBLEM 3: PFLights INNER LOOP nr-1 SUBTRACTION
+The `case else` path iterates per-lamp light objects. Often coded as:
+  For nr = 1 To PFLightsCount(cIdx) : PFLights(cIdx, nr - 1).state = cVal : Next
+The `nr - 1` is a subtraction per iteration that adds up during storms.
+
+ACTION: Use 0-based loop:
+  For nr = 0 To PFLightsCount(cIdx) - 1 : PFLights(cIdx, nr).state = cVal : Next
+
+PROBLEM 4: GI ANIMATE CALLBACKS WITHOUT GUARDS
+Light_Animate callbacks fire EVERY FRAME while a GI light is active —
+60fps unconditionally. Without an early-exit guard, they run expensive
+GetMaterial/UpdateMaterial COM round-trips (34 parameters each!) + multiple
+blenddisablelighting/opacity/image writes even when intensity hasn't changed.
+
+SEARCH: All `_Animate` subs (GILowerLight_Animate, GIMiddleLight_Animate, etc.)
+ACTION: Add module-level last-value tracking + early-exit:
+  Dim lastGILowS : lastGILowS = -1
+  Sub GILowerLight_Animate
+      Dim s : s = light.GetInPlayIntensity / light.Intensity
+      If s = lastGILowS Then Exit Sub
+      lastGILowS = s
+      ' ... all the expensive COM writes ...
+  End Sub
+
+CRITICAL: SetMaterialBaseGreyscale and SetMaterialGlossCoatGreyscale each do
+a GetMaterial (read 17 params from COM) + UpdateMaterial (write 17 params to
+COM) = 34 COM boundary crossings PER CALL. These are among the most expensive
+single operations in any VPX script. Never call them without a guard.
+
+IMPACT: When GI is stable (80%+ of gameplay): eliminates 60-180
+GetMaterial/UpdateMaterial pairs per second + hundreds of COM writes/sec.
+
+PROBLEM 5: STRING CONCATENATION IN GI FADE FUNCTIONS
+GI fade steps often assign texture names via concatenation:
+  Bulb.image = "simplelightwhite" & step
+  For Each obj In GIupperbulbs : obj.image = "simplelightwhite" & step : Next
+
+ACTION: Pre-build at module level:
+  Dim SimpleLightWhiteStr(8)
+  For i = 0 To 8 : SimpleLightWhiteStr(i) = "simplelightwhite" & i : Next
+
+In the fade function, cache the pre-built string before iterating:
+  Dim slwStr : slwStr = SimpleLightWhiteStr(step)
+  For Each obj In GIupperbulbs : obj.image = slwStr : Next
+
+This eliminates N string allocations per GI step (N = collection size).
+
+PROBLEM 6: SetMaterialGlossCoatGreyscale DOUBLE RGB()
+Common pattern computes RGB(255*val, 255*val, 255*val) twice — once for
+glossy and once for clearcoat — with identical values.
+
+ACTION: Compute once into a local:
+  Dim gc : gc = RGB(255*val, 255*val, 255*val)
+  UpdateMaterial name, ..., base, gc, gc, ...
+
+PROBLEM 7: DoSTAnim RUNS UNCONDITIONALLY
+Standup target animation (DoSTAnim) typically runs every 10ms from GameTimer,
+iterating all targets + doing 13+ COM trans reads/writes even when NO targets
+are animating (95%+ of the time).
+
+ACTION: Add active count guard:
+  Dim STActiveCount : STActiveCount = 0
+  Sub DoSTAnim()
+      If STActiveCount = 0 Then Exit Sub
+      ...
+  End Sub
+  ' Increment in STHit when target starts animating
+  ' Decrement in DoSTAnim when animation completes (animate → 0)
+
+IMPACT: Eliminates 13 loop iterations + 26 COM reads/writes per tick
+(~2600 COM ops/sec) during normal play when no targets are active.
+
+LAMP-STORM AUDIT CHECKLIST:
+  [ ] RollingUpdate/RollingSoundUpdate NOT called from LampTimer (only GameTimer)
+  [ ] chglamp(ii,0)/(ii,1) cached into locals at loop top
+  [ ] All _Animate subs have lastValue early-exit guards
+  [ ] No GetMaterial/UpdateMaterial without intensity-change guard
+  [ ] No string concatenation inside GI fade loops
+  [ ] Pre-built string arrays for all light texture names
+  [ ] DoSTAnim (or equivalent) guarded by active count
+  [ ] PFLights inner loop uses 0-based indexing
+
+
+====================================================================
+VBSCRIPT TRAPS THAT WILL CAUSE RUNTIME ERRORS
+====================================================================
+
+1. NEVER self-reference a Variant array element during assignment.
+   VBScript may clear the destination before evaluating the source.
+     BROKEN:  m_compiled(f) = Array(m_compiled(f)(0), m_compiled(f)(1), n)
+     CORRECT: Dim old : old = m_compiled(f) : m_compiled(f) = Array(old(0), old(1), n)
+
+2. Arrays are VALUE types in Variants. Modifying a copy doesn't modify the original.
+     Dim x : x = someArray(i)   ' x is a COPY
+     x(0) = newValue             ' original unchanged!
+     someArray(i) = x            ' MUST write back
+
+3. VBScript And/Or does NOT short-circuit. Both sides always evaluate.
+     BROKEN:  If ScorbitActive And Scorbit.bNeedsPairing Then  ' crashes if no Scorbit
+     CORRECT: If ScorbitActive Then : If Scorbit.bNeedsPairing Then
+
+4. VPX primitives in Variant arrays cannot be Set-cached.
+     Set shd = objBallShadow(s)   ' THROWS Type mismatch
+   Ball objects CAN: Set ball = gBOT(b). Test each type.
+
+5. Colon-delimited single lines cannot nest If/For/Select inside For:
+     BROKEN:  For each b in GILeft: If b.State <> pwm Then b.State = pwm: Next
+     CORRECT: For each b in GILeft
+                  If b.State <> pwm Then b.State = pwm
+              Next
+
+6. Incremental sums can drift if intermediate mutations occur between
+   capture and update. When in doubt, recompute the sum inline.
+
+7. CompileFrames traps: UBound(parts)=2 And parts(2)<>"" crashes when
+   UBound < 2 (no short-circuit). Use nested If. Also handle empty
+   Array() frames (UBound = -1). Don't CInt() level fields that may
+   be hex color strings — store as raw Variant.
+
+
+====================================================================
+VERIFICATION CHECKLIST
+====================================================================
+
+After all fixes, grep and verify:
+
+  [ ] \^        — only acceptable in init code, LUT builders, or cached setters
+  [ ] GetBalls  — only in init code or behind press guards, never in timer loops
+  [ ] " &       — no string concat in timer subs or per-frame loops
+  [ ] Pi / 180  — zero hits in active code (use PIover180)
+  [ ] 180 / PI  — zero hits in active code (use d180overPI)
+  [ ] TypeName( — zero hits in per-frame code
+  [ ] Execute " — zero hits in per-event code (only at init)
+  [ ] CStr(     — zero hits in per-frame light rendering
+  [ ] .timerinterval = 1 — should be 10 for flipper timer
+  [ ] tnob matches BallRollStr array size
+
+
+====================================================================
+DECISION CHECKLIST — BEFORE TOUCHING ANY CODE
+====================================================================
+
+1. HOW OFTEN does it run?
+   Per ball per frame (300Hz @ 5 balls): optimize aggressively.
+   Per frame (60Hz): optimize.
+   Per timer tick (100Hz+): optimize.
+   Per switch hit (5-15/sec): probably skip.
+   Once per ball/mode start: don't touch.
+
+2. WHAT does it do per iteration?
+   COM read?     → Cache into local.
+   COM write?    → Guard with delta check.
+   String &?     → Pre-build array at init.
+   Dictionary?   → Replace with indexed array.
+   ^N?           → Multiply or LUT.
+   Execute/Eval? → Pre-resolve at init.
+   Function call in inner loop? → Inline.
+
+3. WHAT'S THE MULTIPLIER?
+   (iterations/call) × (calls/tick) × (ticks/sec) = ops/sec.
+   Fix anything over ~1000 ops/sec. Ignore anything under ~100.
+
+4. IS THE CACHE POPULATED AT INIT OR FIRST USE?
+   Trace the call chain. Module-level code and Table1_Init = good.
+   Code inside gameplay event handlers = lazy init = first frame pays full cost.
