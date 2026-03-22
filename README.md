@@ -8,18 +8,6 @@ VPX runs VBScript in an interpreted, single-threaded engine with no JIT compiler
 
 This project applies a repeatable optimization methodology across multiple tables to eliminate these bottlenecks.
 
-## Optimized Tables
-
-| Folder | Table |
-|--------|-------|
-| `24_Optimized` | 24 |
-| `Diner_Optimized` | Diner |
-| `Fathom_Optimized` | Fathom |
-| `Gilligan_Optimized` | Gilligan's Island |
-| `NBC_Optimized` | Nightmare Before Christmas |
-| `Rocky_Bullwinkle_Optimized` | Rocky & Bullwinkle |
-| `TNA_Optimized` | Total Nuclear Annihilation |
-| `WOO_Optimized` | Wrath of Olympus |
 
 Each folder contains:
 - The optimized `.vbs` script
