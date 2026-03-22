@@ -1,0 +1,83 @@
+TNA UltraDMD Changes
+============================================================================
+File: Total Nuclear Annihilation (Spooky Pinball 2017)_Bigus(MOD)2.0.vbs
+
+---
+
+1. HOLD-OFF VARIABLE — PREVENT SCOREBOARD FROM OVERWRITING SCENES (~line 215)
+   Added: Dim udmdHoldOffUntil: udmdHoldOffUntil = 0
+   Module-level variable tracks when the current UDMD scene expires.
+   Used by uDMDScoreUpdate to skip DisplayScoreboard calls while a scene is active.
+
+2. uDMDScoreUpdate — HOLD-OFF + HIGH SCORE GUARDS (~line 110)
+   Added: If hsbModeActive Then Exit Sub
+   Added: If Timer < udmdHoldOffUntil Then Exit Sub
+   First guard: prevents DisplayScoreboard from overwriting during high score entry.
+   Second guard: prevents DisplayScoreboard from overwriting DisplayScene00Ex scenes
+   (e.g. "BALL SAVED", jackpot awards, etc.) during their display time.
+
+3. UDMD SUB — SET HOLD-OFF TIMER (~line 8219)
+   Changed Sub UDMD to set hold-off after showing a scene:
+     If utime > 100 Then udmdHoldOffUntil = Timer + (utime / 1000)
+   Any UDMD call with duration > 100ms now blocks scoreboard updates for that duration.
+   Timer returns seconds since midnight; utime is in milliseconds, so divide by 1000.
+
+4. HighScoreEntryInit — DISABLE SCORE TIMER (~line 3047)
+   Added: uDMDScoreTimer.Enabled = False
+   Stops the 5-second scoreboard refresh timer entirely during high score entry.
+   Belt-and-suspenders with the hsbModeActive guard — ensures no DisplayScoreboard00
+   calls can fire while the initials picker is active.
+
+5. HighScoreDisplayName — CENTERLINE PADDING FOR DMDUpdate (~line 3128)
+   Changed: dLine(1) = TempTopStr
+   To:      dLine(1) = CenterLine(1, TempTopStr)
+   CenterLine pads the string to dCharsPerLine(1) = 19 characters.
+   Without padding, DMDUpdate crashes with VBSE_ILLEGAL_FUNC_CALL at the
+   ASC(mid(dLine(id), digit+1, 1)) call when the string is shorter than 19 chars.
+   This was the root cause of the "random crashes with no log" — the crash occurred
+   in DMDUpdate which has no error handler.
+
+6. HighScoreDisplayNameNow — CANCEL RENDERING + TRIM (~line 3116-3117)
+   Added: If UseUltraDMD > 0 Then UltraDMD.CancelRendering
+   Changed: UDMD "NEW HIGH SCORE", "ENTER INITIALS", 5000
+   To:      UDMD Trim(dLine(1)), Trim(dLine(2)), 5000
+   CancelRendering breaks out of the persistent DisplayScoreboard00 mode before
+   showing the scene. Without it, the scoreboard reasserts itself over DisplayScene00Ex.
+   Trim strips the CenterLine padding (19-char space-padded strings) so UltraDMD
+   auto-sizes the font to fit the actual text, not 19 characters of spaces.
+
+7. HighScoreFlashTimer_Timer — CANCEL RENDERING + TRIM (~line 3159-3160)
+   Added: If UseUltraDMD > 0 Then UltraDMD.CancelRendering
+   Changed: UDMD "NEW HIGH SCORE", "ENTER INITIALS", 5000
+   To:      UDMD Trim(dLine(1)), Trim(dLine(2)), 5000
+   Same fix as HighScoreDisplayNameNow — this sub fires every 250ms to flash the
+   current letter cursor. Each call needs CancelRendering + Trim to keep the
+   initials picker visible on UltraDMD.
+
+8. HighscoreDelay — RE-ENABLE SCORE TIMER (~line 3185)
+   Added: uDMDScoreTimer.Enabled = True
+   Restores the 5-second scoreboard refresh timer after high score entry completes.
+   Called 800ms after HighScoreCommitName via vpmtimer.addtimer.
+
+9. SHORTENED UDMD LABELS — PREVENT TEXT OVERFLOW
+   DisplayScene00Ex auto-sizes font based on string length. Long strings cause text
+   to extend outside the DMD bounding box. No font size parameter is available.
+   Shortened the following labels:
+
+   Line 1977: "UNUSED BALLSAVE" -> "BALLSAVE BONUS"
+   Line 2888: "DOUBLE JACKPOT"  -> "DBL JACKPOT"
+   Line 2897: "TRIPLE JACKPOT"  -> "TRPL JACKPOT"
+   Line 5110: "MULTI-BALL TOTAL" -> "MBALL TOTAL" (DMD line)
+   Line 5111: "MULTI-BALL TOTAL" -> "MBALL TOTAL" (UDMD call)
+   Line 6794: "CONGRATULATIONS"  -> "CONGRATS!" (DMD line)
+   Line 6795: "CONGRATULATIONS"  -> "CONGRATS!" (UDMD call)
+   Line 7439: "AWARD LANE SAVE"  -> "+LANE SAVE" (with empty bottom text)
+
+   Note: "REACTOR JACKPOT" was intentionally kept at full length.
+
+10. AddReactorBonus — GUARD DEBUG PRINT (~line 6851)
+    Changed: debug.print "ReactorBonus: " & ReactorBonus
+    To:      If debugReactor Then debug.print "ReactorBonus: " & ReactorBonus
+    The unguarded debug.print fired on every AddReactorBonus call, flooding the log.
+    Now only prints when debugReactor is True (matching the pattern used by other
+    reactor debug prints in the file).
