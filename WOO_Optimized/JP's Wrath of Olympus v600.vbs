@@ -405,16 +405,18 @@ LiveCatchSensivity = 10
 LLiveCatchTimer = 0
 RLiveCatchTimer = 0
 
-LeftFlipper.TimerInterval = 1
+LeftFlipper.TimerInterval = 10
 LeftFlipper.TimerEnabled = 1
 
 Sub LeftFlipper_Timer 'flipper's tricks timer
+    Dim curLA : curLA = LeftFlipper.CurrentAngle
+
 'Start Of Stroke Flipper Stroke Routine : Start of Stroke for Tap pass and Tap shoot
-    If LeftFlipper.CurrentAngle >= LeftFlipper.StartAngle - SOSAngle Then LeftFlipper.Strength = FlipperPower * SOSTorque else LeftFlipper.Strength = FlipperPower : End If
- 
+    If curLA >= LeftFlipper.StartAngle - SOSAngle Then LeftFlipper.Strength = FlipperPower * SOSTorque else LeftFlipper.Strength = FlipperPower : End If
+
 'End Of Stroke Routine : Livecatch and Emply/Full-Charged EOS
 	If LeftFlipperOn = 1 Then
-		If LeftFlipper.CurrentAngle = LeftFlipper.EndAngle then
+		If curLA = LeftFlipper.EndAngle then
 			LeftFlipper.EOSTorque = FullStrokeEOS_Torque
 			LLiveCatchTimer = LLiveCatchTimer + 1
 			If LLiveCatchTimer < LiveCatchSensivity Then
@@ -429,14 +431,15 @@ Sub LeftFlipper_Timer 'flipper's tricks timer
 		LeftFlipper.EOSTorque = LiveStrokeEOS_Torque
 		LLiveCatchTimer = 0
 	End If
-	
+
+    Dim curRA : curRA = RightFlipper.CurrentAngle
 
 'Start Of Stroke Flipper Stroke Routine : Start of Stroke for Tap pass and Tap shoot
-    If RightFlipper.CurrentAngle <= RightFlipper.StartAngle + SOSAngle Then RightFlipper.Strength = FlipperPower * SOSTorque else RightFlipper.Strength = FlipperPower : End If
- 
+    If curRA <= RightFlipper.StartAngle + SOSAngle Then RightFlipper.Strength = FlipperPower * SOSTorque else RightFlipper.Strength = FlipperPower : End If
+
 'End Of Stroke Routine : Livecatch and Emply/Full-Charged EOS
  	If RightFlipperOn = 1 Then
-		If RightFlipper.CurrentAngle = RightFlipper.EndAngle Then
+		If curRA = RightFlipper.EndAngle Then
 			RightFlipper.EOSTorque = FullStrokeEOS_Torque
 			RLiveCatchTimer = RLiveCatchTimer + 1
 			If RLiveCatchTimer < LiveCatchSensivity Then
@@ -717,17 +720,43 @@ Dim TableWidth, TableHeight
 TableWidth = Table1.width
 TableHeight = Table1.height
 
+' --- PRE-COMPUTED CONSTANTS ---
+Dim BS_d2 : BS_d2 = BallSize / 2
+
+' --- PRE-BUILT SOUND STRINGS (eliminates string concatenation in RollingUpdate) ---
+Dim RollStr(19)
+Dim iStr
+For iStr = 0 To 19
+    RollStr(iStr) = "fx_ballrolling" & iStr
+Next
+
 Function Vol(ball) ' Calculates the Volume of the sound based on the ball speed
     Vol = Csng(BallVel(ball) ^2 / 2000)
 End Function
 
-Function Pan(ball) ' Calculates the pan for a ball based on the X position on the table. "table1" is the name of the table
+Function Pan(ball) ' Calculates the pan for a ball based on the X position
     Dim tmp
-    tmp = ball.x * 2 / TableWidth-1
+    tmp = ball.x * 2 / TableWidth - 1
     If tmp > 0 Then
-        Pan = Csng(tmp ^10)
+        Dim t2p : t2p = tmp*tmp : Dim t4p : t4p = t2p*t2p : Dim t8p : t8p = t4p*t4p
+        Pan = Csng(t8p*t2p)
     Else
-        Pan = Csng(-((- tmp) ^10))
+        tmp = -tmp
+        Dim t2pn : t2pn = tmp*tmp : Dim t4pn : t4pn = t2pn*t2pn : Dim t8pn : t8pn = t4pn*t4pn
+        Pan = Csng(-(t8pn*t2pn))
+    End If
+End Function
+
+Function PanXY(x) ' Pan variant accepting pre-cached X scalar
+    Dim tmp
+    tmp = x * 2 / TableWidth - 1
+    If tmp > 0 Then
+        Dim t2px : t2px = tmp*tmp : Dim t4px : t4px = t2px*t2px : Dim t8px : t8px = t4px*t4px
+        PanXY = Csng(t8px*t2px)
+    Else
+        tmp = -tmp
+        Dim t2pxn : t2pxn = tmp*tmp : Dim t4pxn : t4pxn = t2pxn*t2pxn : Dim t8pxn : t8pxn = t4pxn*t4pxn
+        PanXY = Csng(-(t8pxn*t2pxn))
     End If
 End Function
 
@@ -736,16 +765,32 @@ Function Pitch(ball) ' Calculates the pitch of the sound based on the ball speed
 End Function
 
 Function BallVel(ball) 'Calculates the ball speed
-    BallVel = (SQR((ball.VelX ^2) + (ball.VelY ^2)))
+    BallVel = SQR((ball.VelX * ball.VelX) + (ball.VelY * ball.VelY))
 End Function
 
 Function AudioFade(ball) 'only on VPX 10.4 and newer
     Dim tmp
-    tmp = ball.y * 2 / TableHeight-1
+    tmp = ball.y * 2 / TableHeight - 1
     If tmp > 0 Then
-        AudioFade = Csng(tmp ^10)
+        Dim t2f : t2f = tmp*tmp : Dim t4f : t4f = t2f*t2f : Dim t8f : t8f = t4f*t4f
+        AudioFade = Csng(t8f*t2f)
     Else
-        AudioFade = Csng(-((- tmp) ^10))
+        tmp = -tmp
+        Dim t2fn : t2fn = tmp*tmp : Dim t4fn : t4fn = t2fn*t2fn : Dim t8fn : t8fn = t4fn*t4fn
+        AudioFade = Csng(-(t8fn*t2fn))
+    End If
+End Function
+
+Function AudioFadeXY(y) ' AudioFade variant accepting pre-cached Y scalar
+    Dim tmp
+    tmp = y * 2 / TableHeight - 1
+    If tmp > 0 Then
+        Dim t2fy : t2fy = tmp*tmp : Dim t4fy : t4fy = t2fy*t2fy : Dim t8fy : t8fy = t4fy*t4fy
+        AudioFadeXY = Csng(t8fy*t2fy)
+    Else
+        tmp = -tmp
+        Dim t2fyn : t2fyn = tmp*tmp : Dim t4fyn : t4fyn = t2fyn*t2fyn : Dim t8fyn : t8fyn = t4fyn*t4fyn
+        AudioFadeXY = Csng(-(t8fyn*t2fyn))
     End If
 End Function
 
@@ -781,59 +826,77 @@ Sub InitRolling
 End Sub
 
 Sub RollingUpdate()
-    Dim BOT, b, ballpitch, ballvol, speedfactorx, speedfactory
+    Dim BOT, b, ub
     BOT = GetBalls
+    ub = UBound(BOT)
 
     ' stop the sound of deleted balls
-    For b = UBound(BOT) + 1 to tnob
+    For b = ub + 1 to tnob
         rolling(b) = False
-        StopSound("fx_ballrolling" & b)
+        StopSound RollStr(b)
         aBallShadow(b).Y = 3000
     Next
 
     ' exit the sub if no balls on the table
-    If UBound(BOT) = lob - 1 Then Exit Sub 'there no extra balls on this table
+    If ub = lob - 1 Then Exit Sub
 
     ' play the rolling sound for each ball and draw the shadow
-    For b = lob to UBound(BOT)
-        aBallShadow(b).X = BOT(b).X
-        aBallShadow(b).Y = BOT(b).Y
-        aBallShadow(b).Height = BOT(b).Z -Ballsize/2
+    Dim bx, by, bz, vx, vy, vz, velSq, vel, ballvol, ballpitch, panVal, fadeVal
+    Dim speedfactorx, speedfactory
 
-        If BallVel(BOT(b))> 1 Then
-            If BOT(b).z <30 Then
-                ballpitch = Pitch(BOT(b))
-                ballvol = Vol(BOT(b))
+    For b = lob to ub
+        bx = BOT(b).X : by = BOT(b).Y : bz = BOT(b).Z
+        vx = BOT(b).VelX : vy = BOT(b).VelY : vz = BOT(b).VelZ
+
+        ' ball shadow
+        aBallShadow(b).X = bx
+        aBallShadow(b).Y = by
+        aBallShadow(b).Height = bz - BS_d2
+
+        ' compute velocity once for all uses
+        velSq = vx*vx + vy*vy
+        vel = SQR(velSq)
+
+        ' compute pan/fade once per ball (used for rolling + drop sounds)
+        panVal = PanXY(bx)
+        fadeVal = AudioFadeXY(by)
+
+        If vel > 1 Then
+            If bz < 30 Then
+                ballpitch = vel * 20
+                ballvol = Csng(velSq / 2000)
             Else
-                ballpitch = Pitch(BOT(b)) + 25000 'increase the pitch on a ramp
-                ballvol = Vol(BOT(b)) * 3
+                ballpitch = vel * 20 + 25000
+                ballvol = Csng(velSq / 2000) * 3
             End If
             rolling(b) = True
-            PlaySound("fx_ballrolling" & b), -1, ballvol, Pan(BOT(b)), 0, ballpitch, 1, 0, AudioFade(BOT(b))
+            PlaySound RollStr(b), -1, ballvol, panVal, 0, ballpitch, 1, 0, fadeVal
         Else
             If rolling(b) = True Then
-                StopSound("fx_ballrolling" & b)
+                StopSound RollStr(b)
                 rolling(b) = False
             End If
         End If
 
         ' rothbauerw's Dropping Sounds
-        If BOT(b).VelZ <-1 and BOT(b).z <55 and BOT(b).z> 27 Then 'height adjust for ball drop sounds
-            PlaySound "fx_balldrop", 0, ABS(BOT(b).velz) / 17, Pan(BOT(b)), 0, Pitch(BOT(b)), 1, 0, AudioFade(BOT(b))
+        If vz < -1 and bz < 55 and bz > 27 Then
+            PlaySound "fx_balldrop", 0, ABS(vz) / 17, panVal, 0, vel * 20, 1, 0, fadeVal
         End If
 
         ' jps ball speed & spin control
-            BOT(b).AngMomZ = BOT(b).AngMomZ * 0.95
-        If BOT(b).VelX AND BOT(b).VelY <> 0 Then
-            speedfactorx = ABS(maxvel / BOT(b).VelX)
-            speedfactory = ABS(maxvel / BOT(b).VelY)
-            If speedfactorx <1 Then
-                BOT(b).VelX = BOT(b).VelX * speedfactorx
-                BOT(b).VelY = BOT(b).VelY * speedfactorx
+        BOT(b).AngMomZ = BOT(b).AngMomZ * 0.95
+        If vx AND vy <> 0 Then
+            speedfactorx = ABS(maxvel / vx)
+            speedfactory = ABS(maxvel / vy)
+            If speedfactorx < 1 Then
+                BOT(b).VelX = vx * speedfactorx
+                BOT(b).VelY = vy * speedfactorx
+                vx = vx * speedfactorx
+                vy = vy * speedfactorx
             End If
-            If speedfactory <1 Then
-                BOT(b).VelX = BOT(b).VelX * speedfactory
-                BOT(b).VelY = BOT(b).VelY * speedfactory
+            If speedfactory < 1 Then
+                BOT(b).VelX = vx * speedfactory
+                BOT(b).VelY = vy * speedfactory
             End If
         End If
     Next
@@ -2621,9 +2684,11 @@ Sub RainbowTimer_Timer 'rainbow led light color changing
                 RGBStep = 0
             End If
     End Select
+    Dim cDim : cDim = RGB(rRed \ 10, rGreen \ 10, rBlue \ 10)
+    Dim cFull : cFull = RGB(rRed, rGreen, rBlue)
     For each obj in RainbowLights
-        obj.color = RGB(rRed \ 10, rGreen \ 10, rBlue \ 10)
-        obj.colorfull = RGB(rRed, rGreen, rBlue)
+        obj.color = cDim
+        obj.colorfull = cFull
     Next
 End Sub
 
