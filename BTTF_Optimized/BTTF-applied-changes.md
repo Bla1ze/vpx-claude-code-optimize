@@ -79,14 +79,34 @@ Format matches dhChanges.txt. Each entry: what changed, where, why, quantified s
     Each was previously read twice (once for LampState, once for FadingLevel).
     Minor savings since the loop only iterates over changed lamps.
 
+11. GiCompensationSingle — CACHE ARRAY DEREFS + COLLECTION COUNT (line ~2862)
+    Cached `a.Count - 1` into local `cnt` (was recomputed every tick via COM).
+    Cached `LampsOpacity(x, 0) * Giscaler` into local `lo0` — was computed twice per
+    iteration (once for `.Opacity`, once for `.Intensity`). Same for lo1/lo2.
+    Eliminates N redundant multiplications per tick (N = aLampsAll collection size).
+    Applied same pattern to GiCompensation (dual-NR version).
+
+12. FadeLUTsingle — GUARD ColorGradeImage WRITE (line ~2878)
+    Added `LastGoLut` state tracking. Only writes `bttf.ColorGradeImage = LutName & GoLut`
+    when the computed LUT index actually changes. Eliminates redundant string concatenation
+    and COM property write on every tick when GI is in steady state.
+    During GI fading (most ticks): eliminates ~100 string allocs/sec + 100 COM writes/sec.
+
+13. FlexDMD — PRE-BUILT "Seg" STRINGS + CACHE Lightning IMAGE (line ~3595)
+    Pre-built `FlexSegStr(31)` = "Seg0".."Seg31" at script load. Eliminates per-call
+    `"Seg" & id` string concatenation in UpdateFlexChar.
+    Cached `FlexDMDScene.GetImage("Lightning")` into local in FlexTimer_Timer —
+    was called twice per tick (once for `.Visible` check, once for `.Visible = False`).
+    Only active when UseFlexDMD = 1 (off by default).
+
 --- NOT APPLIED ---
 
-11. POTENTIAL: LampTimer structural optimization
+14. POTENTIAL: LampTimer structural optimization
     UpdateLamps calls 127+ individual NFadeL/FadeR/FadeMaterial subs every tick.
     Most lamps are in steady state (FadingLevel 0 or 1) and Select Case exits immediately,
     but the function call overhead is substantial. Would require converting to a loop-based
     approach with parallel arrays instead of individual sub calls — major refactoring.
 
-12. POTENTIAL: Merge CollisionTimer + BallShadowUpdate onto one timer
+15. POTENTIAL: Merge CollisionTimer + BallShadowUpdate onto one timer
     Both call GetBalls independently every tick. If intervals match, merging would
     eliminate ~100 GetBalls COM calls/sec.

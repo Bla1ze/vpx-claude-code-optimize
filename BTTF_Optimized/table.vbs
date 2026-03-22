@@ -2637,19 +2637,20 @@ reDim CollapseMe(5) 'Combined GI subs / functions (Click Me to Collapse)
     end Sub
    
     Sub GiCompensation(nr, nr2, a, GIscaleOff)  'One NR pairing only fading
-    '   tbgi.text = "GI: " & SolModValue(nr) & " " & FlashLevel(nr) & " " & FadingLevel(nr) & vbnewline & _
-    '               "ModGI: " & SolModValue(nr2) & " " & FlashLevel(nr2) & " " & FadingLevel(nr2) & vbnewline & _
-    '               "Solmodvalue, Flashlevel, Fading step"
         if FadingLevel(nr) > 1 or FadingLevel(nr2) > 1 Then
             Dim x, Giscaler, Output : Output = FlashLevel(nr2) * FlashLevel(nr)
             Giscaler = ((Giscaleoff-1) * (ABS(Output-1) )  ) + 1    'fade GIscale the opposite direction
- 
-            for x = 0 to (a.Count - 1) 'Handle Compensate Flashers
+            Dim cnt : cnt = a.Count - 1
+            Dim lo0, lo1, lo2
+            for x = 0 to cnt
                 On Error Resume Next
-                a(x).Opacity = LampsOpacity(x, 0) * Giscaler
-                a(x).Intensity = LampsOpacity(x, 0) * Giscaler
-                a(x).FadeSpeedUp = LampsOpacity(x, 1) * Giscaler
-                a(x).FadeSpeedDown = LampsOpacity(x, 2) * Giscaler
+                lo0 = LampsOpacity(x, 0) * Giscaler
+                lo1 = LampsOpacity(x, 1) * Giscaler
+                lo2 = LampsOpacity(x, 2) * Giscaler
+                a(x).Opacity = lo0
+                a(x).Intensity = lo0
+                a(x).FadeSpeedUp = lo1
+                a(x).FadeSpeedDown = lo2
             Next
             '       tbbb.text = giscaler & " on:" & FadingLevel(nr) & vbnewline & "flash: " & output & " onmod:" & FadingLevel(nr2) & vbnewline & l37.intensity
             '       tbbb1.text = FadingLevel(nr) & vbnewline & FadingLevel(nr2)
@@ -2863,24 +2864,31 @@ reDim CollapseMe(8) 'Bonus GI Subs for games with only simple On/Off GI (Click M
         if FadingLevel(nr) > 1 Then
             Dim x, Giscaler, Output : Output = FlashLevel(nr)
             Giscaler = ((Giscaleoff-1) * (ABS(Output-1) )  ) + 1    'fade GIscale the opposite direction
- 
-            for x = 0 to (a.Count - 1) 'Handle Compensate Flashers
+            Dim cnt : cnt = a.Count - 1
+            Dim lo0, lo1, lo2, scaled0
+            for x = 0 to cnt
                 On Error Resume Next
-                a(x).Opacity = LampsOpacity(x, 0) * Giscaler
-                a(x).Intensity = LampsOpacity(x, 0) * Giscaler
-                a(x).FadeSpeedUp = LampsOpacity(x, 1) * Giscaler
-                a(x).FadeSpeedDown = LampsOpacity(x, 2) * Giscaler
+                lo0 = LampsOpacity(x, 0) * Giscaler
+                lo1 = LampsOpacity(x, 1) * Giscaler
+                lo2 = LampsOpacity(x, 2) * Giscaler
+                a(x).Opacity = lo0
+                a(x).Intensity = lo0
+                a(x).FadeSpeedUp = lo1
+                a(x).FadeSpeedDown = lo2
             Next
         End If
         '       tbbb1.text = FLashLevel(nr) & vbnewline & FlashLevel(nr2)
     End Sub
    
+    Dim LastGoLut : LastGoLut = -1
     Sub FadeLUTsingle(nr, LutName, LutCount)    'fade lookuptable NOTE- this is a bad idea for darkening your table as
         If FadingLevel(nr) >2 Then              '-it will strip the whites out of your image
             Dim GoLut
             GoLut = cInt(LutCount * FlashLevel(nr)  )
-            bttf.ColorGradeImage = LutName & GoLut
-    '       tbgi2.text = Table1.ColorGradeImage & vbnewline & golut 'debug
+            If GoLut <> LastGoLut Then
+                bttf.ColorGradeImage = LutName & GoLut
+                LastGoLut = GoLut
+            End If
         End If
     End Sub
    
@@ -3592,45 +3600,47 @@ Sub FlexDictionary_Init
 End sub
 
 
+Dim FlexSegStr(31)
+Dim iSeg
+For iSeg = 0 To 31
+    FlexSegStr(iSeg) = "Seg" & iSeg
+Next
+
 Sub UpdateFlexChar(id, value)
-
 	If id < 32 Then
-		if FlexDMDDict.Exists (value) then
-			FlexDMDScene.GetImage("Seg" & id).Bitmap = FlexDMD.NewImage("", FlexDMDDict.Item (value)).Bitmap
-		Else
-			'FlexDMDScene.GetImage("Seg" & id).Bitmap = FlexDMD.NewImage("", "VPX.DMD_Space").Bitmap
-		end if
+		If FlexDMDDict.Exists(value) Then
+			FlexDMDScene.GetImage(FlexSegStr(id)).Bitmap = FlexDMD.NewImage("", FlexDMDDict.Item(value)).Bitmap
+		End If
 	End If
-
 End Sub
 
 Sub FlexTimer_Timer
-
-
 		Dim ChgLED, ii, num, stat
 		ChgLED=Controller.ChangedLEDs(&Hffffffff, &Hffffffff)
 
 		If Not IsEmpty(ChgLED)Then
 
 			FlexDMD.LockRenderThread
-			
+
 			For ii=0 To UBound(chgLED)
 				num=chgLED(ii, 0) : stat=chgLED(ii, 2)
 				UpdateFlexChar num, stat
 			Next
 
-			if FlexDMDScene.GetImage("Lightning").Visible = False then
-				if (LampState(106) = 1 and LampState(109) = 1) or  (LampState(104) = 1 and LampState(114) = 1)   then 
+			Dim ltnImg
+			Set ltnImg = FlexDMDScene.GetImage("Lightning")
+			If ltnImg.Visible = False Then
+				if (LampState(106) = 1 and LampState(109) = 1) or (LampState(104) = 1 and LampState(114) = 1) then
 					FlexLightning
 				End if
-			else
-				FlexDMDScene.GetImage("Lightning").Visible = False
-			end if
+			Else
+				ltnImg.Visible = False
+			End If
 
 			FlexDMD.UnlockRenderThread
 
 		End if
-		
+
 End Sub
 
 
