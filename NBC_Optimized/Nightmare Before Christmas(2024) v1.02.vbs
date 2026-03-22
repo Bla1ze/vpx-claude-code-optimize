@@ -159,6 +159,14 @@ Const lob = 0
 Dim tablewidth:tablewidth = Table1.width
 Dim tableheight:tableheight = Table1.height
 
+' Pre-built "xmas" image strings — eliminates per-light string concat in updateXlights
+Dim XmasStr(4)
+XmasStr(1) = "xmas1" : XmasStr(2) = "xmas2" : XmasStr(3) = "xmas3" : XmasStr(4) = "xmas4"
+
+' Pre-built "InsertPurpleOn" material strings — eliminates per-insert string concat
+Dim InsertMatStr(17)
+Dim imsI : For imsI = 1 To 17 : InsertMatStr(imsI) = "InsertPurpleOn" & imsI : Next
+
 LoadCoreFiles
 
 Sub LoadCoreFiles
@@ -766,12 +774,12 @@ Sub updateXlights
 			xlight(tmp,0) = 2 
 			x.blenddisablelighting = Xon
 			If xlight(tmp,5) > 0 Then
-				x.image = "xmas"& xlight(tmp,5)
+				x.image = XmasStr(xlight(tmp,5))
 			Else
-				x.image = "xmas"& Int(rnd(1)*4)+1
+				x.image = XmasStr(Int(rnd(1)*4)+1)
 			End If
 		Elseif xlight(tmp,0) = 0 then
-			x.image ="xmas" & 1 + tmp mod 4
+			x.image = XmasStr(1 + tmp mod 4)
 			x.blenddisablelighting = 0.3
 		End If
 		tmp = tmp + 1
@@ -801,12 +809,12 @@ Sub updateXlights
 			xlight(tmp,0) = 2 
 			x.blenddisablelighting = Xon
 			If xlight(tmp,5) > 0 Then
-				x.image = "xmas"& xlight(tmp,5)
+				x.image = XmasStr(xlight(tmp,5))
 			Else
-				x.image = "xmas"& Int(rnd(1)*4)+1
+				x.image = XmasStr(Int(rnd(1)*4)+1)
 			End If
 		Elseif xlight(tmp,0) = 0 then
-			x.image ="xmas" & 1 + tmp mod 4
+			x.image = XmasStr(1 + tmp mod 4)
 			x.blenddisablelighting = 0.3
 		End If
 		tmp = tmp + 1
@@ -836,12 +844,12 @@ Sub updateXlights
 			xlight(tmp,0) = 2 
 			x.blenddisablelighting = Xon
 			If xlight(tmp,5) > 0 Then
-				x.image = "xmas"& xlight(tmp,5)
+				x.image = XmasStr(xlight(tmp,5))
 			Else
-				x.image = "xmas"& Int(rnd(1)*4)+1
+				x.image = XmasStr(Int(rnd(1)*4)+1)
 			End If
 		Elseif xlight(tmp,0) = 0 then
-			x.image ="xmas" & 1 + tmp mod 4
+			x.image = XmasStr(1 + tmp mod 4)
 			x.blenddisablelighting = 0.3
 		End If
 		tmp = tmp + 1
@@ -871,12 +879,12 @@ Sub updateXlights
 			xlight(tmp,0) = 2 
 			x.blenddisablelighting = Xon
 			If xlight(tmp,5) > 0 Then
-				x.image = "xmas"& xlight(tmp,5)
+				x.image = XmasStr(xlight(tmp,5))
 			Else
-				x.image = "xmas"& Int(rnd(1)*4)+1
+				x.image = XmasStr(Int(rnd(1)*4)+1)
 			End If
 		Elseif xlight(tmp,0) = 0 then
-			x.image ="xmas" & 1 + tmp mod 4
+			x.image = XmasStr(1 + tmp mod 4)
 			x.blenddisablelighting = 0.3
 		End If
 		tmp = tmp + 1
@@ -906,12 +914,12 @@ Sub updateXlights
 			xlight(tmp,0) = 2 
 			x.blenddisablelighting = Xon
 			If xlight(tmp,5) > 0 Then
-				x.image = "xmas"& xlight(tmp,5)
+				x.image = XmasStr(xlight(tmp,5))
 			Else
-				x.image = "xmas"& Int(rnd(1)*4)+1
+				x.image = XmasStr(Int(rnd(1)*4)+1)
 			End If
 		Elseif xlight(tmp,0) = 0 then
-			x.image ="xmas" & 1 + tmp mod 4
+			x.image = XmasStr(1 + tmp mod 4)
 			x.blenddisablelighting = 0.3
 		End If
 		tmp = tmp + 1
@@ -5767,45 +5775,55 @@ End Sub
 '******************************************************
 
 Function AudioFade(tableobj) ' Fades between front and back of the table (for surround systems or 2x2 speakers, etc), depending on the Y position on the table. "table1" is the name of the table
-	Dim tmp
-	tmp = tableobj.y * 2 / tableheight - 1
-	
+	AudioFade = AudioFadeXY(tableobj.y)
+End Function
+
+Function AudioFadeXY(y) ' AudioFade variant accepting pre-cached Y scalar
+	Dim tmp, t2, t4, t8
+	tmp = y * 2 / tableheight - 1
 	If tmp > 7000 Then
 		tmp = 7000
 	ElseIf tmp <  - 7000 Then
 		tmp =  - 7000
 	End If
-	
 	If tmp > 0 Then
-		AudioFade = CSng(tmp ^ 10)
+		t2 = tmp * tmp : t4 = t2 * t2 : t8 = t4 * t4
+		AudioFadeXY = CSng(t8 * t2)
 	Else
-		AudioFade = CSng( - (( - tmp) ^ 10) )
+		tmp = -tmp
+		t2 = tmp * tmp : t4 = t2 * t2 : t8 = t4 * t4
+		AudioFadeXY = CSng(-(t8 * t2))
 	End If
 End Function
 
 Function AudioPan(tableobj) ' Calculates the pan for a tableobj based on the X position on the table. "table1" is the name of the table
-	Dim tmp
-	tmp = tableobj.x * 2 / tablewidth - 1
-	
+	AudioPan = AudioPanXY(tableobj.x)
+End Function
+
+Function AudioPanXY(x) ' AudioPan variant accepting pre-cached X scalar
+	Dim tmp, t2, t4, t8
+	tmp = x * 2 / tablewidth - 1
 	If tmp > 7000 Then
 		tmp = 7000
 	ElseIf tmp <  - 7000 Then
 		tmp =  - 7000
 	End If
-	
 	If tmp > 0 Then
-		AudioPan = CSng(tmp ^ 10)
+		t2 = tmp * tmp : t4 = t2 * t2 : t8 = t4 * t4
+		AudioPanXY = CSng(t8 * t2)
 	Else
-		AudioPan = CSng( - (( - tmp) ^ 10) )
+		tmp = -tmp
+		t2 = tmp * tmp : t4 = t2 * t2 : t8 = t4 * t4
+		AudioPanXY = CSng(-(t8 * t2))
 	End If
 End Function
 
 Function Vol(ball) ' Calculates the volume of the sound based on the ball speed
-	Vol = CSng(BallVel(ball) ^ 2)
+	Vol = CSng(BallVel(ball) * BallVel(ball))
 End Function
 
 Function Volz(ball) ' Calculates the volume of the sound based on the ball speed
-	Volz = CSng((ball.velz) ^ 2)
+	Volz = CSng(ball.velz * ball.velz)
 End Function
 
 Function Pitch(ball) ' Calculates the pitch of the sound based on the ball speed
@@ -5813,15 +5831,17 @@ Function Pitch(ball) ' Calculates the pitch of the sound based on the ball speed
 End Function
 
 Function BallVel(ball) 'Calculates the ball speed
-	BallVel = Int(Sqr((ball.VelX ^ 2) + (ball.VelY ^ 2) ) )
+	BallVel = Int(Sqr(ball.VelX * ball.VelX + ball.VelY * ball.VelY))
 End Function
 
 Function VolPlayfieldRoll(ball) ' Calculates the roll volume of the sound based on the ball speed
-	VolPlayfieldRoll = RollingSoundFactor * 0.0005 * CSng(BallVel(ball) ^ 3)
+	Dim vel : vel = BallVel(ball)
+	VolPlayfieldRoll = RollingSoundFactor * 0.0005 * CSng(vel * vel * vel)
 End Function
 
 Function PitchPlayfieldRoll(ball) ' Calculates the roll pitch of the sound based on the ball speed
-	PitchPlayfieldRoll = BallVel(ball) ^ 2 * 15
+	Dim vel : vel = BallVel(ball)
+	PitchPlayfieldRoll = vel * vel * 15
 End Function
 
 Function RndInt(min, max) ' Sets a random number integer between min and max
@@ -6388,28 +6408,41 @@ Sub InitRolling
 End Sub
 
 Sub RollingUpdate()
-	Dim b, bz, bvz
+	Dim b, bx, by, bz, bvx, bvy, bvz
 	Dim gBOT
 	gBOT = GetBalls
 
+	Dim ub : ub = UBound(gBOT)
+
 	' stop the sound of deleted balls
-	For b = UBound(gBOT) + 1 To tnob - 1
-		' Comment the next line if you are not implementing Dyanmic Ball Shadows
-		'If AmbientBallShadowOn = 0 Then BallShadowA(b).visible = 0
+	For b = ub + 1 To tnob - 1
 		rolling(b) = False
 		StopSound(BallRollStr(b))
 	Next
 
 	' exit the sub if no balls on the table
-	If UBound(gBOT) = -1 Then Exit Sub
+	If ub = -1 Then Exit Sub
+
+	Dim velSq, vel, panVal, fadeVal
 
 	' play the rolling sound for each ball
-	For b = 0 To UBound(gBOT)
-		bz  = gBOT(b).z    ' cache COM reads for this ball
+	For b = 0 To ub
+		bx  = gBOT(b).x
+		by  = gBOT(b).y
+		bz  = gBOT(b).z
+		bvx = gBOT(b).VelX
+		bvy = gBOT(b).VelY
 		bvz = gBOT(b).VelZ
-		If BallVel(gBOT(b)) > 1 And bz < 30 Then
+
+		velSq = bvx * bvx + bvy * bvy
+		vel = Int(Sqr(velSq))
+
+		panVal = AudioPanXY(bx)
+		fadeVal = AudioFadeXY(by)
+
+		If vel > 1 And bz < 30 Then
 			rolling(b) = True
-			PlaySound (BallRollStr(b)), -1, VolPlayfieldRoll(gBOT(b)) * BallRollVolume * VolumeDial, AudioPan(gBOT(b)), 0, PitchPlayfieldRoll(gBOT(b)), 1, 0, AudioFade(gBOT(b))
+			PlaySound (BallRollStr(b)), -1, RollingSoundFactor * 0.0005 * CSng(vel * vel * vel) * BallRollVolume * VolumeDial, panVal, 0, vel * vel * 15, 1, 0, fadeVal
 		Else
 			If rolling(b) = True Then
 				StopSound(BallRollStr(b))
@@ -6418,7 +6451,7 @@ Sub RollingUpdate()
 		End If
 
 		' Ball Drop Sounds
-		If bvz < -1 And bz < 55 And bz > 27 Then 'height adjust for ball drop sounds
+		If bvz < -1 And bz < 55 And bz > 27 Then
 			If DropCount(b) >= 5 Then
 				DropCount(b) = 0
 				If bvz > -7 Then
@@ -6432,19 +6465,6 @@ Sub RollingUpdate()
 		If DropCount(b) < 5 Then
 			DropCount(b) = DropCount(b) + 1
 		End If
-		
-		' "Static" Ball Shadows
-		' Comment the next If block, if you are not implementing the Dynamic Ball Shadows
-		'If AmbientBallShadowOn = 0 Then
-		'	If gBOT(b).Z > 30 Then
-		'		BallShadowA(b).height = gBOT(b).z - BallSize / 4		'This is technically 1/4 of the ball "above" the ramp, but it keeps it from clipping the ramp
-		'	Else
-		'		BallShadowA(b).height = 0.1
-		'	End If
-		'	BallShadowA(b).Y = gBOT(b).Y + offsetY
-		'	BallShadowA(b).X = gBOT(b).X + offsetX
-		'	BallShadowA(b).visible = 1
-		'End If
 	Next
 End Sub
 
@@ -6566,23 +6586,31 @@ Sub RampRoll_Timer()
 End Sub
 
 Sub RampRollUpdate()	'Timer update
-	Dim x
+	Dim x, ball, vel, velSq, rollVol, panVal, fadeVal
 	For x = 1 To UBound(RampBalls)
 		If Not IsEmpty(RampBalls(x,1) ) Then
-			If BallVel(RampBalls(x,0) ) > 1 Then ' if ball is moving, play rolling sound
+			Set ball = RampBalls(x,0)
+			Dim bvx : bvx = ball.VelX
+			Dim bvy : bvy = ball.VelY
+			velSq = bvx * bvx + bvy * bvy
+			vel = Int(Sqr(velSq))
+			If vel > 1 Then ' if ball is moving, play rolling sound
+				rollVol = RollingSoundFactor * 0.0005 * CSng(vel * vel * vel) * RampRollVolume * VolumeDial
+				panVal = AudioPanXY(ball.x)
+				fadeVal = AudioFadeXY(ball.y)
 				If RampType(x) Then
-					PlaySound(RampLoopStr(x)), -1, VolPlayfieldRoll(RampBalls(x,0)) * RampRollVolume * VolumeDial, AudioPan(RampBalls(x,0)), 0, BallPitchV(RampBalls(x,0)), 1, 0, AudioFade(RampBalls(x,0))
+					PlaySound(RampLoopStr(x)), -1, rollVol, panVal, 0, pSlope(vel, 1, - 4000, 60, 7000), 1, 0, fadeVal
 					StopSound(WireLoopStr(x))
 				Else
 					StopSound(RampLoopStr(x))
-					PlaySound(WireLoopStr(x)), -1, VolPlayfieldRoll(RampBalls(x,0)) * RampRollVolume * VolumeDial, AudioPan(RampBalls(x,0)), 0, BallPitch(RampBalls(x,0)), 1, 0, AudioFade(RampBalls(x,0))
+					PlaySound(WireLoopStr(x)), -1, rollVol, panVal, 0, pSlope(vel, 1, - 1000, 60, 10000), 1, 0, fadeVal
 				End If
 				RampBalls(x, 2) = RampBalls(x, 2) + 1
 			Else
 				StopSound(RampLoopStr(x))
 				StopSound(WireLoopStr(x))
 			End If
-			If RampBalls(x,0).Z < 30 And RampBalls(x, 2) > RampMinLoops Then	'if ball is on the PF, remove  it
+			If ball.Z < 30 And RampBalls(x, 2) > RampMinLoops Then
 				StopSound(RampLoopStr(x))
 				StopSound(WireLoopStr(x))
 				Wremoveball RampBalls(x,1)
@@ -9688,7 +9716,8 @@ Sub Insertupdate
 				End Select
 			End If
 		Else
-			ins.state = Blink(idx,1)
+			Dim blkVal : blkVal = Blink(idx,1)
+			If ins.state <> blkVal Then ins.state = blkVal
 		End If
 	idx=idx+1
 	Next
@@ -10988,44 +11017,47 @@ End Sub
 
 Dim InsertColors(20,14)
 Sub Update_RGB_inserts
-	Dim tmp,y,col(5) , tmp2	
+	Dim tmp,y,col(5) , tmp2
+	Dim dmdMod : dmdMod = DMD_Frame mod 120
+	Dim rgbVal
 	For x = 1 to 17
-		tmp = 1																				' how many is on 
-		If ArrowLights(x,1) = 2 Then col(tmp) = 3 : tmp = tmp + 1 
+		tmp = 1																				' how many is on
+		If ArrowLights(x,1) = 2 Then col(tmp) = 3 : tmp = tmp + 1
 		If ArrowLights(x,2) = 2 Then col(tmp) = 6 : tmp = tmp + 1
 		If ArrowLights(x,3) = 2 Then col(tmp) = 9  : tmp = tmp + 1
 		If ArrowLights(x,4) = 2 Then col(tmp) = 12 : tmp = tmp + 1
 		tmp2 = 22
 		If x = 10 Then tmp2 = 41
 		If x > 10 Then tmp2 = 21
-		If tmp > 1 Then 
+		If tmp > 1 Then
 			If Blink(x + tmp2,1) = 0 Then blink((x+tmp2),1) = 2
 		Else
 			blink((x+tmp2),1) = 0
 		End If
-		Select Case tmp 
+		Select Case tmp
 			case 2																			'one color
-				col(5) = col(1)	
+				col(5) = col(1)
 			case 3																			'two colors
-				If DMD_Frame mod 120 < 60 Then col(5) = col(1) Else col(5) = col(2)
+				If dmdMod < 60 Then col(5) = col(1) Else col(5) = col(2)
 			case 4 :																		'three colors
 				col(5) = col(1)
-				If DMD_Frame mod 120 < 80 Then col(5) = col(2)
-				If DMD_Frame mod 120 < 40 Then col(5) = col(3)
+				If dmdMod < 80 Then col(5) = col(2)
+				If dmdMod < 40 Then col(5) = col(3)
 			Case 5																			'4 colors
 				col(5) = col(1)
-				If DMD_Frame mod 120 < 90 Then col(5) = col(2)
-				If DMD_Frame mod 120 < 60 Then col(5) = col(3)
-				If DMD_Frame mod 120 < 30 Then col(5) = col(4)
+				If dmdMod < 90 Then col(5) = col(2)
+				If dmdMod < 60 Then col(5) = col(3)
+				If dmdMod < 30 Then col(5) = col(4)
 		End Select
 		For y = 0 to 2
 			tmp = InsertColors( x , y + col(5))
 			If InsertColors(x,y) < tmp Then InsertColors(x,y) = InsertColors(x,y) + 33 : If InsertColors(x,y) > tmp Then InsertColors(x,y) = tmp
 			If InsertColors(x,y) > tmp Then InsertColors(x,y) = InsertColors(x,y) - 33 : If InsertColors(x,y) < tmp Then InsertColors(x,y) = tmp
 		Next
-		UpdateMaterial "InsertPurpleOn" & x,0,0,1,1,1,0,0.999,rgb(InsertColors(x,0),InsertColors(x,1),InsertColors(x,2)),rgb(0,0,0),rgb(0,0,0),False,True,0,0,0,0
-		InsertsRGB(x-1).colorfull = RGB(InsertColors(x,0),InsertColors(x,1),InsertColors(x,2))
-		InsertsRGB(x-1).color = RGB(InsertColors(x,0),InsertColors(x,1),InsertColors(x,2))
+		rgbVal = RGB(InsertColors(x,0),InsertColors(x,1),InsertColors(x,2))
+		UpdateMaterial InsertMatStr(x),0,0,1,1,1,0,0.999,rgbVal,rgb(0,0,0),rgb(0,0,0),False,True,0,0,0,0
+		InsertsRGB(x-1).colorfull = rgbVal
+		InsertsRGB(x-1).color = rgbVal
 	Next
 End Sub
 

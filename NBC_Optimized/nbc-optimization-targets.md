@@ -275,3 +275,115 @@ dCos = Cos(degrees * Pi_over_180)
 **Key difference from table.vbs:** This table's bottleneck is FrameTimer_Timer's mass of unconditional
 COM reads and writes (~300 per frame). The primary wins are caching repeated reads of the same
 light property within one frame, plus fixing 2 literal duplicate assignments (lines 2894 and 3187).
+
+---
+
+## DEEPER PASS TARGETS
+
+## RANK 9 — AudioFade/AudioPan: Replace ^10 with repeated squaring + add XY variants
+**File:** line ~5779 | **Frequency:** ~500+ calls/sec (from RollingUpdate, RampRollUpdate, all hit sounds)
+
+**Problems:**
+- `tmp ^10` uses generic VBS exponentiation dispatch — slow COM math call
+- `ball.VelX ^2` in BallVel uses generic `^` dispatch
+- `^3` in VolPlayfieldRoll, `^2` in PitchPlayfieldRoll — all generic dispatch
+- AudioFade/AudioPan read `tableobj.x`/`.y` — redundant when caller already has cached values
+
+**Fix:** Replace `^10` with repeated squaring (3 muls). Add AudioPanXY/AudioFadeXY. Replace all `^2`/`^3`.
+
+**Status:** [x]
+
+---
+
+## RANK 10 — RollingUpdate: Full rewrite — cache all ball properties + inline Vol/Pitch
+**File:** line ~6400 | **Frequency:** ~77Hz × up to 10 balls
+
+**Problems:**
+- `gBOT(b).x`, `.y`, `.VelX`, `.VelY` not cached (only .z/.VelZ were cached in pass 1)
+- BallVel called 3× per ball per tick (via VolPlayfieldRoll, PitchPlayfieldRoll, and directly)
+- AudioPan/AudioFade each make a COM read for .x/.y — redundant with cached values
+
+**Fix:** Cache all 6 ball properties. Inline Vol/Pitch computation. Use AudioPanXY/AudioFadeXY.
+
+**Estimated savings:** ~4,620 COM reads/sec + ~770 BallVel/sec eliminated (5 balls).
+
+**Status:** [x]
+
+---
+
+## RANK 11 — updateXlights: Pre-build xmas image strings
+**File:** line ~751 | **Frequency:** ~77Hz × 230 lights
+
+**Problem:** `"xmas" & xlight(tmp,5)` and `"xmas" & Int(rnd(1)*4)+1` and `"xmas" & 1+tmp mod 4`
+— string concatenation per light per frame for all 230 xmas lights.
+
+**Fix:** Pre-build `XmasStr(1..4)` array at module level. Index into it instead of concatenating.
+
+**Estimated savings:** ~17,710 string allocs/sec eliminated.
+
+**Status:** [x]
+
+---
+
+## RANK 12 — RampRollUpdate: Cache ball properties + inline Vol/Pitch
+**File:** line ~6578 | **Frequency:** 10Hz × active ramp balls
+
+**Problems:**
+- `RampBalls(x,0)` dereferenced 5-6× per iteration without caching
+- BallVel called 4× per ball (via VolPlayfieldRoll, BallPitch, BallPitchV, and directly)
+- AudioPan/AudioFade redundant COM reads
+
+**Fix:** Cache ball ref, cache VelX/VelY, compute vel once, inline all helpers.
+
+**Status:** [x]
+
+---
+
+## RANK 13 — Update_RGB_inserts: Cache DMD_Frame mod 120 + dedup RGB + pre-built material strings
+**File:** line ~11000 | **Frequency:** ~77Hz × 17 inserts
+
+**Problems:**
+- `DMD_Frame mod 120` computed 4-8× per insert (depending on color count)
+- `RGB(InsertColors(x,0),InsertColors(x,1),InsertColors(x,2))` computed 3× per insert
+- `"InsertPurpleOn" & x` string concatenation per insert per frame
+
+**Fix:** Cache dmdMod once. Cache rgbVal once. Use pre-built InsertMatStr array.
+
+**Estimated savings:** ~5,236 redundant mod ops/sec + ~2,618 redundant RGB calls/sec + ~1,309 string allocs/sec.
+
+**Status:** [x]
+
+---
+
+## RANK 14 — Insertupdate: Guard .state writes in steady-state branch
+**File:** line ~9719 | **Frequency:** ~77Hz × ~160 inserts
+
+**Problem:** `ins.state = Blink(idx,1)` written unconditionally for every insert every frame,
+even when value hasn't changed. Most inserts are in steady state most of the time.
+
+**Fix:** `If ins.state <> blkVal Then ins.state = blkVal`
+
+**Estimated savings:** Up to ~12,320 COM writes/sec eliminated during stable state.
+
+**Status:** [x]
+
+---
+
+## UPDATED SUMMARY TABLE
+
+| Rank | Location | Type | Freq | Impact | Status |
+|------|----------|------|------|--------|--------|
+| 1 | FrameTimer_Timer (~2882) | Cache 12 repeated COM reads | 77Hz | **HIGH** — ~3,700 reads/sec | [x] |
+| 2 | FrameTimer_Timer (~2889) | Cache flipper angles + fix dup line | 77Hz | **HIGH** — ~925 ops/sec | [x] |
+| 3 | FrameTimer_Timer (~3176) | Cache Plunger.Position + fix dup write | 77Hz | **MEDIUM** — ~462 reads/sec | [x] |
+| 4 | GameTimer_Timer (~721) | Guard GI loop writes | 77Hz | **MEDIUM** — N×2 writes/frame | [x] |
+| 5 | RollingUpdate (~6340) | String cache + COM cache | 77Hz | **MEDIUM** — ~540 ops/sec/ball | [x] |
+| 6 | RampRoll+WRemoveBall (~6512) | String cache | 10Hz | LOW — string allocs when active | [x] |
+| 7 | FrameTimer_Timer (~3112) | Guard material string writes | 77Hz | **MEDIUM** — ~847 writes/sec | [x] |
+| 8 | FlipperNudge (~5012) | Pre-compute Pi/180 | 10-30Hz | TRIVIAL | [x] |
+| 9 | AudioFade/AudioPan (~5779) | ^10→repeated squaring + XY variants | ~500/sec | **HIGH** — ~500+ dispatches/sec | [x] |
+| 10 | RollingUpdate (~6400) | Full rewrite: cache all + inline | 77Hz×5 | **HIGH** — ~4,620 reads/sec | [x] |
+| 11 | updateXlights (~751) | Pre-built xmas strings | 77Hz×230 | **HIGH** — ~17,710 allocs/sec | [x] |
+| 12 | RampRollUpdate (~6578) | Cache ball + inline helpers | 10Hz | **MEDIUM** — ~80 reads/sec | [x] |
+| 13 | Update_RGB_inserts (~11000) | Cache mod/RGB + pre-built strings | 77Hz×17 | **MEDIUM** — ~9,163 ops/sec | [x] |
+| 14 | Insertupdate (~9719) | Guard .state writes | 77Hz×160 | **HIGH** — ~12,320 writes/sec | [x] |

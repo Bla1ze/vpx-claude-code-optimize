@@ -152,14 +152,76 @@ Format matches dhChanges.txt. Each entry: what changed, where, why, quantified s
 
 ---
 
+## DEEPER PASS — Applied Changes
+
+21. AudioFade/AudioPan — REPLACE ^10 WITH REPEATED SQUARING + ADD XY VARIANTS (~line 5779)
+    Replaced `tmp ^10` with `t2=tmp*tmp : t4=t2*t2 : t8=t4*t4 : result=t8*t2`
+    (3 multiplications instead of generic VBS exponentiation dispatch).
+    Added `AudioFadeXY(y)` and `AudioPanXY(x)` variants accepting pre-cached scalars,
+    eliminating `.x`/`.y` COM reads for hot-path callers (RollingUpdate, RampRollUpdate).
+    AudioFade/AudioPan now delegate to XY variants internally.
+    Saves ~1 ^10 dispatch per call. At ~500+ calls/sec with 5 balls: significant.
+
+22. BallVel — REPLACE ^2 WITH MULTIPLICATION (~line 5826)
+    Changed `ball.VelX ^ 2` to `ball.VelX * ball.VelX` and `ball.VelY ^ 2` to `ball.VelY * ball.VelY`.
+    VBScript `^` uses generic COM exponentiation dispatch; `*` is a stack operation.
+    Also replaced `^2` with multiplication in Vol, Volz, PitchPlayfieldRoll.
+    Replaced `^3` in VolPlayfieldRoll with `vel * vel * vel` (cached BallVel result).
+
+23. PRE-BUILT XmasStr ARRAY (line ~161)
+    Added `Dim XmasStr(4)` with pre-built "xmas1" through "xmas4" at module level.
+    Replaces `"xmas" & xlight(tmp,5)` and `"xmas" & Int(rnd(1)*4)+1` and `"xmas" & 1 + tmp mod 4`
+    string concatenation in updateXlights. 5 loop bodies × up to 230 lights = 230 concat/frame.
+    At 77Hz: ~17,710 string allocs/sec eliminated.
+
+24. PRE-BUILT InsertMatStr ARRAY (line ~164)
+    Added `Dim InsertMatStr(17)` with pre-built "InsertPurpleOn1" through "InsertPurpleOn17".
+    Replaces `"InsertPurpleOn" & x` string concatenation in Update_RGB_inserts.
+    At 77Hz × 17 iterations: ~1,309 string allocs/sec eliminated.
+
+25. RollingUpdate REWRITE — CACHE ALL BALL PROPERTIES + INLINE VOL/PITCH (~line 6400)
+    Cached `gBOT(b).x`, `.y`, `.VelX`, `.VelY` into locals (previously only .z/.VelZ cached).
+    Cached `UBound(gBOT)` into local `ub`.
+    Inlined VolPlayfieldRoll: `RollingSoundFactor * 0.0005 * CSng(vel * vel * vel)` — eliminates
+    redundant BallVel call inside VolPlayfieldRoll.
+    Inlined PitchPlayfieldRoll: `vel * vel * 15` — eliminates redundant BallVel call.
+    Computed `velSq = bvx*bvx + bvy*bvy` once, derived `vel = Int(Sqr(velSq))`.
+    Used `AudioPanXY(bx)` and `AudioFadeXY(by)` with cached scalars.
+    BUG FIX: panVal/fadeVal computed before `vel > 1` check so drop sounds always have valid values.
+    Per ball per tick: ~12 COM reads eliminated, ~2 BallVel calls eliminated, ~2 ^10 dispatches replaced.
+    At 77Hz × 5 balls: ~4,620 COM reads/sec, ~770 BallVel/sec eliminated.
+
+26. RampRollUpdate REWRITE — CACHE BALL PROPERTIES + INLINE VOL/PITCH (~line 6578)
+    Cached `RampBalls(x,0)` into local `ball` (Set).
+    Cached `ball.VelX`, `ball.VelY` into locals.
+    Computed `velSq`/`vel` once per ball iteration.
+    Inlined VolPlayfieldRoll, used AudioPanXY/AudioFadeXY with cached ball.x/ball.y.
+    Inlined BallPitch/BallPitchV as pSlope(vel, ...) — eliminates redundant BallVel inside each.
+    Per ball per tick: ~8 COM reads eliminated, ~4 BallVel calls eliminated.
+
+27. Update_RGB_inserts — CACHE DMD_Frame mod 120 + PRE-BUILT MATERIAL STRINGS + CACHE RGB (~line 11000)
+    Cached `DMD_Frame mod 120` into local `dmdMod` — was computed 4-8× per insert per tick.
+    Used pre-built `InsertMatStr(x)` instead of `"InsertPurpleOn" & x`.
+    Cached `RGB(InsertColors(x,0),InsertColors(x,1),InsertColors(x,2))` into local `rgbVal` —
+    was computed 3× per insert (UpdateMaterial, .colorfull, .color).
+    At 77Hz × 17 inserts: ~5,236 redundant mod ops/sec + ~2,618 redundant RGB calls/sec eliminated.
+
+28. Insertupdate — GUARD .state WRITES (~line 9719)
+    Added `If ins.state <> blkVal Then ins.state = blkVal` guard in the else branch (steady state).
+    Most inserts are in steady state most frames — avoids unconditional COM write per insert per frame.
+    At 77Hz × ~160 inserts in steady state: up to ~12,320 COM writes/sec eliminated.
+
+---
+
 ## SUMMARY
 
 Total COM reads eliminated per frame (77Hz):
   - 14 cached COM reads declared once, replacing ~54 redundant reads   = ~4,158 reads/sec
   - Flasher020.opacity re-reads eliminated                             =   ~462 reads/sec
   - Plunger.Position redundant reads eliminated                        =   ~462 reads/sec
-  - RollingUpdate .z / .VelZ per ball                                  =   ~308 reads/sec/ball
-  TOTAL reads eliminated: ~5,390+/sec (single ball)
+  - RollingUpdate full rewrite (×5 balls)                              = ~4,620 reads/sec
+  - RampRollUpdate rewrite (per active ramp ball)                      =    ~80 reads/sec
+  TOTAL reads eliminated: ~9,782+/sec (5 balls)
 
 Total COM writes eliminated per frame (77Hz):
   - Flipper RotZ writes guarded (at rest ~80% of frames)               =   ~540 writes/sec
@@ -167,8 +229,16 @@ Total COM writes eliminated per frame (77Hz):
   - Duplicate Primitive187.transz write removed                        =    ~77 writes/sec
   - GI material string writes guarded (~11+N per frame)                =   ~847+ writes/sec
   - GI bulb color writes guarded (N×2 per frame)                       =    N×154 writes/sec
-  TOTAL writes eliminated: ~1,541+ writes/sec (stable GI, flippers at rest)
+  - Insertupdate .state writes guarded (~160 inserts)                  = ~12,320 writes/sec
+  TOTAL writes eliminated: ~13,861+ writes/sec (stable GI, flippers at rest)
+
+Exponentiation dispatches eliminated:
+  - AudioFade/AudioPan ^10 replaced with repeated squaring             =   ~500+/sec
+  - BallVel/Vol/Volz/VolPlayfieldRoll/PitchPlayfieldRoll ^2/^3        =   ~770+/sec
 
 String allocations eliminated:
   - BallRollStr: ~77/sec per ball in RollingUpdate
-  - RampLoopStr/WireLoopStr: up to ~80/sec during ramp rolling (10Hz × up to 8)
+  - RampLoopStr/WireLoopStr: up to ~80/sec during ramp rolling
+  - XmasStr: ~17,710/sec in updateXlights (230 lights × 77Hz)
+  - InsertMatStr: ~1,309/sec in Update_RGB_inserts (17 × 77Hz)
+  - RGB dedup in Update_RGB_inserts: ~2,618 redundant RGB calls/sec
