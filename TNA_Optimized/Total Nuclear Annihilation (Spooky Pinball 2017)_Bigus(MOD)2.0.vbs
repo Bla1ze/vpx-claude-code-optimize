@@ -830,7 +830,6 @@ Sub StartBackgroundMusic	'Reactor 1 always plays TNA1.mp3
 			Else
 				m_main = "TNA" & tmp & ".mp3"
 			End If
-			debug.print m_main
 			PlaySong m_main, 2
 		End If
 	Else
@@ -1157,8 +1156,6 @@ End Sub
 '**** Blink Left GI Sling
 Sub GILeftSlingHit
 	Dim Bulb
-	debug.print "GILeftSlingHit" & gametime
-	
     For each bulb in aGILeftSling
 		If ReactorState(CurrentPlayer) = 3 Then
 			SetLight bulb, "blue", -1
@@ -1174,7 +1171,6 @@ Sub GILeftSlingHit
 End Sub
 
 Sub GI3_Timer
-	debug.print "GI3_Timer"  & gametime
 	Dim Bulb
 	
     For each bulb in aGILeftSling
@@ -1214,7 +1210,6 @@ End Sub
 'Gi - Newer GI effects 
 Dim EffectNum
 Sub GIGame (num, col)
-	debug.print "GIGAme: " & num & " : " & col & "(" & CurrCol
 	GIOff
 	EffectNum = num
 	NextCol = col
@@ -2046,8 +2041,6 @@ Sub EndOfBall2()
 
     ' has the player won an extra-ball ? (might be multiple outstanding)
     If(ExtraBallsAwards(CurrentPlayer) <> 0)Then
-        debug.print "Extra Ball"
-
         ' yep got to give it to them
         ExtraBallsAwards(CurrentPlayer) = ExtraBallsAwards(CurrentPlayer)- 1
 
@@ -2079,8 +2072,6 @@ Sub EndOfBall2()
 
         ' was that the last ball ?
         If(BallsRemaining(CurrentPlayer) <= 0)Then
-            debug.print "No More Balls, High Score Entry"
-
             ' Submit the CurrentPlayers score to the High Score system
             CheckHighScore()
         ' you may wish to play some music at this point
@@ -2462,9 +2453,7 @@ Sub EnableBallSaver(seconds)
 	dbsones = Int(dbstime-dbstens*10)
 	dbsdecimals = Int((dbstime-dbstens*10-dbsones)*10)
 
-	debug.print dbsones
-	debug.print dbsdecimals
-	if dbstime > 10 then 
+	if dbstime > 10 then
 		fBStens.ImageA = Eval(dbstens)
 		fBSones.ImageA = Eval(dbsones)
 	else
@@ -2633,7 +2622,6 @@ Sub AddToTotalReactorReward
 	rtmp = ReactorValue(CurrentPlayer) * xMultiplier
 	ReactorReactorTotalReward(CurrentPlayer) = ReactorReactorTotalReward(CurrentPlayer) + rtmp
 
-	debug.print "AddToTotalReactorReward " & ReactorValue(CurrentPlayer) & ": Multiplier " & xMultiplier & "= " & rtmp & ": Sum = " & ReactorReactorTotalReward(CurrentPlayer) 
 	'msgbox ReactorValue(CurrentPlayer) & ": Multiplier " & xMultiplier & "= " & rtmp & ": Sum = " & ReactorReactorTotalReward(CurrentPlayer) 
 End Sub
 
@@ -2835,7 +2823,6 @@ Sub AwardExtraBall()
 			DOF 167, DOFPulse: DMD "", eNone, "_", eNone, Centerline(2, "EXTRA BALL WON"), eBlink, "", eNone, 1000, True, "tna_extraball"
 			UDMD "EXTRA BALL", "AWARDED", 1000
 			ExtraBallsAwards(CurrentPlayer) = ExtraBallsAwards(CurrentPlayer) + 1
-			debug.print "ExtraBall count " & ExtraBallsAwards(CurrentPlayer)
 '			bExtraBallWonThisBall = True
 
 			'Set Insert or Display
@@ -2848,7 +2835,6 @@ Sub AwardExtraBallNoCallout()
 	If CoopMode = 0 Then	
 		If NOT bExtraBallWonThisBall Then 'Use if you want to limit to 1 extraball
 			ExtraBallsAwards(CurrentPlayer) = ExtraBallsAwards(CurrentPlayer) + 1
-			debug.print "ExtraBall count " & ExtraBallsAwards(CurrentPlayer)
 '	       bExtraBallWonThisBall = True
 
 			'Set Insert or Display
@@ -2917,7 +2903,6 @@ Sub AwardSkillshot()
 '	Else
 '		DOF 168, DOFPulse: DMD "", eNone, "", eNone, "", eNone, CenterLine(3, "SKILLSHOT"), eBlinkfast, 1000, True, "tna_lanesaveincreased"
 '	End If
-	debug.print "Skillshot"
     AddScore SkillshotValue
     GiEffect 2
 
@@ -2929,7 +2914,6 @@ End Sub
 Sub AwardHandsFreeSkillshot()
     DMDFlush
 	DOF 169, DOFPulse: DMD "", eNone, "", eNone, "", eNone, CenterLine(3, "SKILLSHOT"), eBlinkfast, 1000, True, "tna_superskillshot"
-	debug.print "Super Skillshot"
 	UDMD "SUPER", "SKILLSHOT", 1000
     AddScore SkillshotValue
     GiEffect 2
@@ -4321,7 +4305,6 @@ Sub AwardSAVE (value)
 		End If
 		GIGame 1, "yellow"
 	End If
-	Debug.Print "LaneSaveCount(CurrentPlayer) = " & LaneSaveCount(CurrentPlayer)
 	ttSaves.text = "S:" & LaneSaveCount(CurrentPlayer)
 
 
@@ -5384,7 +5367,6 @@ Sub DropTarget3_Hit
 		'Addscore DropTargetScore
 		If (bLockIsLit = True) Then			'Multiball start
 			SetBallsOnPlayfield 3
-			Debug.print "BallsonPlayfieldMulti" & " : " & BallsOnPlayfield
 			bBallSaverReady = True
 			bAutoPlunger = True
 			EnableBallSaver BallSaverTime
@@ -6359,7 +6341,6 @@ Const ReactorValue9 = 125000
 Const ReactorMaxMultiplier = 3
 
 Sub ResetReactor
-	debug.print "*****SUB:" & "ResetReactor [ReactorState(CurrentPlayer)=0]"
 	dim tmp
 
 	ReactorState(CurrentPlayer) = 0
