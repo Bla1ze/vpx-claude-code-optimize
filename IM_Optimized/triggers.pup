@@ -1,0 +1,339 @@
+ID,Active,Descript,Trigger,ScreenNum,PlayList,PlayFile,Volume,Priority,Length,Counter,RestSeconds,Loop,Defaults
+
+1,1,Attract,D0,5,Attract,,100,2,,,,Loop,0
+5,0,"STOP ATTRACT",E667,11,Attract,,,2,,,,StopPlayer,0
+3,0,"BackGlass Loop",D0,11,Backglass,Trans3ScreenLE.png,0,2,,,,forceback,0
+2,1,"DMD BG",E599,5,Backglass,"IM Cloud Loop.mp4",0,2,,,,SetBG,0
+4,1,"HighScore Underlay",E999,5,Backglass,"HIGH SCORE ENTRY_purist.mp4",0,2,,,,forceback,0
+6,0,"STOP Backglass",E668,5,Backglass,,,,,,,StopPlayer,0
+
+7,1,"OVERLAY OFF!",E500,5,PupOverlays,clear.png,0,2,,,,normal,0
+8,1,"Overlay 1P Song Selection",E511,5,PupOverlays,SongSelectP1.png,0,2,,,,normal,0
+9,1,"Overlay 1P Ball-in-play and end total",E512,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+10,1,"Overlay 1P Bonus Screen",E513,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+11,1,"Overlay 2P Song Selection",E521,5,PupOverlays,SongSelectP1.png,0,2,,,,normal,0
+12,1,"Overlay 2P Ball-in-play and end total",E522,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+13,1,"Overlay 2P Bonus Screen",E523,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+14,1,"Overlay 3P Song Selection",E531,5,PupOverlays,SongSelectP1.png,0,2,,,,normal,0
+15,1,"Overlay 3P Ball-in-play and end total",E532,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+16,1,"Overlay 3P Bonus Screen",E533,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+17,1,"Overlay 4P Song Selection",E541,5,PupOverlays,SongSelectP1.png,0,2,,,,normal,0
+18,1,"Overlay 4P Ball-in-play and end total",E542,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+19,1,"Overlay 4P Bonus Screen",E543,5,PupOverlays,"Purist 1PlayerB.png",0,2,,,,normal,0
+
+20,,,,,,,,,,,,,
+
+21,1,"Song Selection Start",E1000,4,SongSelection,"SONG SELECTION.mp4",0,2,,,,forceback,0
+22,1,SONG_POWERSLAVE,E1001,4,SongSelection,IM_Powerslave_alt.mp4,0,2,,,,forceback,0
+23,1,SONG_NUMBERBEAST,E1002,4,SongSelection,IM_Beast_alt.mp4,0,2,,,,forceback,0
+24,1,SONG_WASTEDYEARS,E1003,4,SongSelection,IM_Wasted_alt.mp4,0,2,,,,forceback,0
+25,1,SONG_TROOPER,E1004,4,SongSelection,IM_Trooper_alt.mp4,0,2,,,,forceback,0
+26,1,SONG_2MINUTES,E1005,4,SongSelection,IM_2Minutes_alt.mp4,0,2,,,,forceback,0
+27,1,SONG_ACES,E1006,4,SongSelection,IM_Aces_alt.mp4,0,2,,,,forceback,0
+28,1,SONG_MADNESS,E1007,4,SongSelection,IM_Madness_alt.mp4,0,2,,,,forceback,0
+29,1,SONG_FLIGHT,E1008,4,SongSelection,IM_Flight_alt.mp4,0,2,,,,forceback,0
+30,1,SONG_HALLOWED,E1009,4,SongSelection,IM_Hallowed_alt.mp4,0,2,,,,forceback,0
+31,1,SONG_RIME,E1010,4,SongSelection,IM_Rime_alt.mp4,0,2,,,,forceback,0
+32,1,SONG_HILLS,E1011,4,SongSelection,IM_Run_alt.mp4,0,2,,,,forceback,0
+33,1,SONG_FEAR,E1012,4,SongSelection,IM_Fear_alt.mp4,0,2,,,,forceback,0
+34,1,SONG_GHOST,E1013,4,SongSelection,IM_Ghost_alt.mp4,0,2,,,,forceback,0
+35,1,SONG_WICKER,E1014,4,SongSelection,IM_WICKER_alt.mp4,0,2,,,,forceback,0
+36,1,SONG_SPEED,E1015,4,SongSelection,IM_SPEED_alt.mp4,0,2,,,,forceback,0
+273,1,NO_MUSIC,E1016,4,SongSelection,NO_MUSIC.mp4,0,2,,,,forceback,0
+37,0,"STOP Song Selection",E666,4,SongSelection,,,2,,,,StopPlayer,0
+
+38,,,,,,,,,,,,,
+
+39,1,"Hit The Skillshot",E601,5,Callouts,"Make a skill shot.mp4",0,2,,,,normal,0
+40,1,"SKILL SHOT AWARDED",E602,5,Callouts,"SKILL SHOT AWARDED.mp4",0,2,,,,normal,0
+41,1,"SUPER SKILLSHOT AWARDED",E603,5,Callouts,"SUPER SKILL SHOT AWARDED.mp4",0,2,,,,normal,0
+42,1,"SUPER SECRET SKILLSHOT AWARDED",E604,5,Callouts,"SUPER SECRET SKILLSHOT.mp4",0,2,,,,normal,0
+43,1,"BALL SAVED",E605,5,Callouts,"BALL SAVED KEEP SHOOTING.mp4",0,2,,,,normal,0
+44,1,TILT,E606,5,Callouts,Tilt.mp4,0,2,,,,normal,0
+45,1,NUDGE,E607,5,Callouts,DANGER.mp4,0,2,,,,normal,0
+46,1,Deathblow,E608,5,Callouts,"DEATH BLOW.mp4",0,2,,,,normal,0
+47,1,"Super Deathblow",E609,5,Callouts,"Super Death Blow.mp4",0,2,,,,normal,0
+48,1,"Extra Ball Lit",E610,5,Extraball,"Extra Ball Is lit.mp4",0,2,,,,normal,0
+49,1,"Extra Ball Awarded",E611,5,Extraball,"Extra Ball Awarded.mp4",0,2,,,,normal,0
+50,1,"Combo 2",E612,5,Combo,"2-WAY COMBO.mp4",0,2,,,,normal,0
+51,1,"Combo 3",E613,5,Combo,"3-WAY COMBO.mp4",0,2,,,,normal,0
+52,1,"Combo 4",E614,5,Combo,"4-WAY COMBO.mp4",0,2,,,,normal,0
+53,1,"Combo 5",E615,5,Combo,"5-WAY COMBO.mp4",0,2,,,,normal,0
+54,1,"Playfield X",E616,5,Callouts,"Playfield Multiplier.mp4",0,2,,,,normal,0
+55,1,"Playfield 2X",E617,5,Callouts,"Playfield multiplier 2x.mp4",0,2,,,,normal,0
+56,1,"Playfield 3x",E618,5,Callouts,"Playfield Multiplier 3x.mp4",0,2,,,,normal,0
+57,1,"STARTED POWER ORBITS",E619,5,Callouts,"STARTED POWER ORBITS.mp4",0,2,,,,normal,0
+58,1,"STARTED POWER BUMPERS",E620,5,Callouts,"STARTED POWER POPS.mp4",0,2,,,,normal,0
+59,1,"STARTED POWER RAMPS",E621,5,Callouts,"STARTED POWER RAMPS.mp4",0,2,,,,normal,0
+60,1,"STARTED POWER SPINNERS",E622,5,Callouts,"STARTED POWER SPINNERS.mp4",0,2,,,,normal,0
+61,1,"STARTED POWER TARGETS",E623,5,Callouts,"STARTED POWER TARGETS.mp4",0,2,,,,normal,0
+62,1,---------SPARE---------,E624,5,Callouts,,0,2,,,,,0
+63,1,"POWER JACKPOT LIT",E625,5,Callouts,"POWER JACKPOT LIT.mp4",0,2,,,,normal,0
+64,1,"Loop Award",E626,5,Callouts,"Loop Award.mp4",0,2,,,,normal,0
+65,1,"Mystery Orb Level1",E627,5,Callouts,"Mystery Orb Level 1 is Lit.mp4",0,2,,,,normal,0
+66,1,"Mystery Orb Level 2",E628,5,Callouts,"Mystery Orb Level 2 is Lit.mp4",0,2,,,,normal,0
+67,1,"Mystery Orb Level 3",E629,5,Callouts,"Mystery Orb Level 2 is Lit.mp4",0,2,,,,normal,0
+68,0,"STOP CALLOUTS",E649,5,Callouts,,,,,,,StopPlayer,0
+
+69,,,,,,,,,,,,,
+
+70,1,"Start EDDIE -Shoot White Arrows to Summon EDDIE",E650,5,Eddie,"EDDIE NO LETTERS.mp4",0,2,,,,forceback,0
+71,1,"Eddie 1st Letter",E651,5,Eddie,"EDDIE 1ST LETTER GETS LIT.mp4",0,2,,,,normal,0
+72,1,"Eddie 2nd Letter",E652,5,Eddie,"EDDIE 2ND LETTER GETS LIT.mp4",0,2,,,,normal,0
+73,1,"Eddie 3rd Letter",E653,5,Eddie,"EDDIE 3RD LETTER GETS LIT.mp4",0,2,,,,normal,0
+74,1,"Eddie 4th Letter",E654,5,Eddie,"EDDIE 4TH LETTER GETS LIT.mp4",0,2,,,,normal,0
+75,1,"Eddie 5th Letter Battle Mode",E655,5,Eddie,"EDDIE BATTLE IS LIT SHOOT THE UNDERWORLD!.mp4",0,2,,,,normal,0
+76,0,"STOP EDDIE",E659,5,Eddie,,0,2,,,,StopPlayer,0
+
+77,,,,,,,,,,,,,
+
+78,1,"Trooper Multiball Start",E670,5,TrooperMultiball,"BALL 3 LOCKED START TROOPER MULTIBALL.mp4",0,2,,,,normal,0
+79,1,"Trooper Multi Loop",E671,5,TrooperMultiball,"Shoot Jackpots on the Battlefield.mp4",0,2,,,,forceback,0
+80,1,"Trooper Advance 1",E672,5,TrooperMultiball,"Trooper Advance 1.mp4",0,2,,,,SplashReset,0
+81,1,"Trooper Advance 2",E673,5,TrooperMultiball,"Trooper Advance 2.mp4",0,2,,,,normal,0
+82,1,"Trooper Award 1",E674,5,TrooperMultiball,CannonShotAward1.mp4,0,2,,,,normal,0
+83,1,"Trooper Award 2",E675,5,TrooperMultiball,CannonShotAward2.mp4,0,2,,,,normal,0
+84,1,"Trooper Award 3",E676,5,TrooperMultiball,CannonShotAward3.mp4,0,2,,,,normal,0
+85,1,"Trooper Award 4",E677,5,TrooperMultiball,"Trooper award 4.mp4",0,2,,,,normal,0
+86,1,"Trooper Award 5",E678,5,TrooperMultiball,"Trooper Award 5.mp4",0,2,,,,normal,0
+87,1,"Trooper Award 6",E679,5,TrooperMultiball,"Trooper Award 6.mp4",0,2,,,,normal,0
+88,1,"Trooper Canon",E680,5,TrooperMultiball,"Trooper Multiball Canon.mp4",0,2,,,,normal,0
+89,1,"Trooper Final",E681,5,TrooperMultiball,"Trooper Super Jackpot.mp4",0,2,,,,normal,0
+90,1,"Trooper Complete",E682,5,TrooperMultiball,"Trooper Super Jackpot.mp4",0,2,,,,normal,0
+91,1,"Trooper 1x Jackpot",E683,5,TrooperMultiball,"Trooper 1xJackpot award5.mp4",0,2,,,,normal,0
+92,1,"Trooper 2x Jackpot",E684,5,TrooperMultiball,"Trooper 2xJackpot award1.mp4",0,2,,,,normal,0
+93,1,"Trooper 2x Jackpot",E685,5,TrooperMultiball,"Trooper 2xJackpot award2.mp4",0,2,,,,normal,0
+94,1,"Trooper 2x Jackpot",E686,5,TrooperMultiball,"Trooper 2xJackpot award3.mp4",0,2,,,,normal,0
+95,1,"Trooper 2x Jackpot",E687,5,TrooperMultiball,"Trooper 2xJackpot award4.mp4",0,2,,,,normal,0
+96,1,"Trooper 3x Jackpot",E688,5,TrooperMultiball,"Trooper 3xJackpot award1.mp4",0,2,,,,normal,0
+97,1,"Trooper 3x Jackpot",E689,5,TrooperMultiball,"Trooper 3xJackpot award2.mp4",0,2,,,,normal,0
+98,1,"Trooper 3x Jackpot",E690,5,TrooperMultiball,"Trooper 3xJackpot award3.mp4",0,2,,,,normal,0
+99,1,"Trooper 3x Jackpot",E691,5,TrooperMultiball,"Trooper 3xJackpot award4.mp4",0,2,,,,normal,0
+100,1,"Trooper 4x Jackpot",E692,5,TrooperMultiball,"Trooper 4xJackpot award1.mp4",0,2,,,,normal,0
+101,1,"Trooper 4x Jackpot",E693,5,TrooperMultiball,"Trooper 4xJackpot award2.mp4",0,2,,,,normal,0
+102,1,"Trooper 4x Jackpot",E694,5,TrooperMultiball,"Trooper 4xJackpot award3.mp4",0,2,,,,normal,0
+103,1,"Trooper 4x Jackpot",E695,5,TrooperMultiball,"Trooper 4xJackpot award4.mp4",0,2,,,,normal,0
+104,1,"Trooper Drop targets Award",E696,5,TrooperMultiball,"Trooper Drop Targets Award.mp4",0,2,,,,normal,0
+105,1,"Trooper Locks Lit",E697,5,TrooperMultiball,"Trooper Locks Lit.mp4",0,2,,,,normal,0
+106,1,"Trooper Loop Jackpot",E698,5,TrooperMultiball,"Trooper Loop Jackpot.mp4",0,2,,,,normal,0
+107,1,"Trooper Super Jackpot",E699,5,TrooperMultiball,"Trooper Super Jackpot.mp4",0,2,,,,normal,0
+108,0,"STOP TROOPER",E669,5,TrooperMultiball,,0,2,,,,StopPlayer,0
+
+109,,,,,,,,,,,,,
+
+110,1,"Flight Start",E700,5,FlightOfIcarus,"Flight Start.mp4",0,2,,,,normal,0
+111,1,"Flight Loop",E703,5,FlightOfIcarus,"Flight BG Loop.mp4",0,2,,,,forceback,0
+112,1,"Flight Right Ramp",E701,5,FlightOfIcarus,"Right Ramp.mp4",0,2,,,,SplashResume,0
+113,1,"Flight Left Ramp",E702,5,FlightOfIcarus,"Left Ramp.mp4",0,2,,,,SplashResume,0
+114,1,"Flight Award 1",E704,5,FlightOfIcarus,"Flight Award 1.mp4",0,2,,,,SplashResume,0
+115,1,"Flight Award 2",E705,5,FlightOfIcarus,"Flight Award 2.mp4",0,2,,,,SplashResume,0
+116,1,"Flight Award 3",E706,5,FlightOfIcarus,"Flight Award 3.mp4",0,2,,,,SplashResume,0
+117,1,"Flight End",E707,5,FlightOfIcarus,"Flight Finale.mp4",0,2,,,,normal,0
+118,1,"Flight End - BG kicks back in",E707,5,Backglass,"IM Cloud Loop.mp4",0,2,,,,SetBG,0
+119,0,"STOP FLIGHT",E709,5,FlightOfIcarus,,0,2,,,,StopPlayer,0
+
+120,,,,,,,,,,,,,0
+
+121,1,"Hallowed Start",E720,5,HallowedBeThyName,"Hallowed Start.mp4",0,2,,,,normal,0
+122,1,"Hallowed BG",E720,5,HallowedBeThyName,"Hallowed BG.mp4",0,2,,,,forceback,0
+123,1,"Hallowed Break left cuff",E722,5,HallowedBeThyName,"Break Left Cuff.mp4",0,2,,,,SplashResume,0
+124,1,"Hallowed One Arm Loose",E723,5,HallowedBeThyName,"Hallowed 1 arm loose.mp4",0,2,,,,SplashResume,0
+125,1,"Hallowed Break Right Cuff ",E724,5,HallowedBeThyName,"Break Right Cuff.mp4",0,2,,,,SplashResume,0
+126,1,"Hallowed Both Arms Loose",E725,5,HallowedBeThyName,"Hallowed both arms loose loop.mp4",0,2,,,,SplashResume,0
+127,1,"Hallowed Beak Neck",E726,5,HallowedBeThyName,"Break Neck.mp4",0,2,,,,SplashResume,0
+128,1,"Hallowed Window",E727,5,HallowedBeThyName,"Hallowed at window.mp4",0,2,,,,SplashResume,0
+129,1,"Hallowed Break Bars",E728,5,HallowedBeThyName,"Break Bars.mp4",0,2,,,,SplashResume,0
+130,1,"Hallowed Bars Open",E729,5,HallowedBeThyName,"Hallowed bars open.mp4",0,2,,,,SplashResume,0
+131,1,"Hallowed Jump",E730,5,HallowedBeThyName,"Hallowed Jump.mp4",0,2,,,,SplashResume,0
+132,1,"Hallowed Shoot Pharaoh",E731,5,HallowedBeThyName,"Shoot the Pharaoh.mp4",0,2,,,,SplashResume,0
+133,1,"Hallowed Escape Awarded",E732,5,HallowedBeThyName,"Escape Awarded WIN.mp4",0,2,,,,SplashResume,0
+134,1,"Hallowed end TOTAL",E733,5,HallowedBeThyName,"Hallowed TOTAL.mp4",0,2,,,,normal,0
+135,1,"Hallowed BONUS TOTAL",E734,5,HallowedBeThyName,"Hallowed BONUS TOTAL2",0,2,,,,normal,0
+136,0,"STOP HALLOWED",E739,5,HallowedBeThyName,,0,2,,,,StopPlayer,0
+
+137,,,,,,,,,,,,,
+
+138,1,"Mummy Multiball Start",E750,5,MummyMultiball,"MUMMY MULTIBALL Throw.mp4",0,2,,,,normal,0
+139,1,"Mummy BG",E764,5,MummyMultiball,"Mummy start.mp4",0,2,,,,forceback,0
+140,1,"Mummy Shoot Pharaoh",E751,5,MummyMultiball,"MUMMY Shoot the Pharaoh.mp4",0,2,,,,normal,0
+141,1,"Mummy Shoot Sarcophagus",E752,5,MummyMultiball,"MUMM Shoot Sarcophagus.mp4",0,2,,,,normal,0
+142,1,"MUMMY Sarcophagus Lock is Lit",E753,5,MummyMultiball,"SARCOPHAGUS LOCK IS LIT.mp4",0,2,,,,normal,0
+143,1,"Mummy M",E754,5,MummyMultiball,"Mummy 1M.mp4",0,2,,,,normal,0
+144,1,"MummyDrop Targets Award",E755,5,MummyMultiball,"MUMMY Drop Targets Award.mp4",0,2,,,,normal,0
+145,1,"Mummy M Loop",E756,5,MummyMultiball,"Mummy 1M.mp4",0,2,,,,normal,0
+146,1,"Mummy MU",E757,5,MummyMultiball,"MUMMY 2MU.mp4",0,2,,,,normal,0
+147,1,"Mummy MU Loop",E758,5,MummyMultiball,"MUMMY 2MU.mp4",0,2,,,,normal,0
+148,1,"Mummy MUM",E759,5,MummyMultiball,"Mummy 3MUM.mp4",0,2,,,,normal,0
+149,1,"Mummy MUM Loop",E760,5,MummyMultiball,"Mummy 3MUM.mp4",0,2,,,,normal,0
+150,1,"Mummy MUMM",E761,5,MummyMultiball,"Mummy 4MUMM.mp4",0,2,,,,normal,0
+151,1,"Mummy MUMM Loop",E762,5,MummyMultiball,"Mummy 4MUMM.mp4",0,2,,,,normal,0
+152,1,"Mummy MUMMY",E763,5,MummyMultiball,"MUMMY is LIT.mp4",0,2,,,,normal,0
+153,1,"MUMMY JACKPOT",E765,5,MummyMultiball,"MUMMY Jackpot.mp4",0,2,,,,normal,0
+154,1,"Mummy Super Jackpot",E766,5,MummyMultiball,"Mummy Super Jackpot.mp4",0,2,,,,normal,0
+155,1,"MUMMY Scepter Jackpot",E767,5,MummyMultiball,"SCEPTER JACKPOT.mp4",0,2,,,,normal,0
+156,1,"Mummy AddABall",E768,5,MummyMultiball,"MUMMY BALL ADDED.mp4",0,2,,,,normal,0
+157,1,"Mummy Ball Locked",E769,5,MummyMultiball,"Sarcophagus lock.mp4",0,2,,,,normal,0
+158,0,"STOP MUMMY",E770,5,MummyMultiball,,0,2,,,,StopPlayer,0
+
+159,,,,,,,,,,,,,
+
+160,1,"Fear Start",E780,5,FearOfTheDark,"fear of the dark start.mp4",0,2,,,,forceback,0
+161,1,"Fear Spinners",E781,5,FearOfTheDark,"Shoot SPINNERS!.mp4",0,2,,,,normal,0
+162,1,"Fear Ramp Award",E782,5,FearOfTheDark,"ramp awarded.mp4",0,2,,,,normal,0
+163,1,"Fear Spinner Award",E783,5,FearOfTheDark,"Spinner AWARD COLLECTED.mp4",0,2,,,,normal,0
+164,1,"Fear Shoot Ramps or Loops",E784,5,FearOfTheDark,,0,2,,,,normal,0
+165,1,"Fear BONUS Total",E798,5,FearOfTheDark,"fear bonus total.mp4",0,2,,,,normal,0
+166,1,"Fear Complete Total",E799,5,FearOfTheDark,"fear total.mp4",0,2,,,,normal,0
+167,0,"STOP FEAR",E789,5,FearOfTheDark,,0,2,,,,StopPlayer,0
+
+168,0,,,,,,,,,,,,
+
+169,1,"Rime Start",E800,5,RimeOfTheAncientMariner,"Rime Start.mp4",0,2,,,,normal,0
+174,1,"Rime Shoot Bullseye",E801,5,RimeOfTheAncientMariner,"Rime Shoot Underworld Loop.mp4",0,2,,,,forceback,0
+175,1,"Rime Abatruss Collected",E802,5,RimeOfTheAncientMariner,"Albatross Hurryup collected longer.mp4",0,2,,,,normal,0
+170,1,"Rime Shoot Blue Arrows",E803,5,RimeOfTheAncientMariner,"Shoot Blue Arrows.mp4",0,2,,,,forceback,0
+171,1,"Rime Port Shot",E804,5,RimeOfTheAncientMariner,"Port shot!.mp4",0,2,,,,normal,0
+172,1,"Rime Starboard shot",E805,5,RimeOfTheAncientMariner,"Starboard Shot!.mp4",0,2,,,,normal,0
+173,1,"Rime Wind Blown of Course",E806,5,RimeOfTheAncientMariner,"Wind has blown you of course.mp4",0,2,,,,normal,0
+176,1,"Rime Power Jackpot Lit",E807,5,RimeOfTheAncientMariner,"Power Jackpot Lit.mp4",0,2,,,,normal,0
+177,1,"Rime Power Jackpot",E808,5,RimeOfTheAncientMariner,"Power Jackpot.mp4",0,2,,,,normal,0
+178,1,"Rime Jackpot",E809,5,RimeOfTheAncientMariner,Jackpot!.mp4,0,2,,,,normal,0
+179,1,"Rime Ball Added",E810,5,RimeOfTheAncientMariner,"Ball Added.mp4",0,2,,,,normal,0
+180,1,"Rime End Total",E811,5,RimeOfTheAncientMariner,"Rime TOTAL.mp4",0,2,,,,normal,0
+181,0,"STOP RIME",E812,5,RimeOfTheAncientMariner,,0,2,,,,StopPlayer,0
+
+182,,,,,,,,,,,,,
+
+183,1,"Two Minutes to Midnight Start",E830,5,"Two Minutes to Midnight","Two Minutes Shoot Lit Arrows.mp4",0,2,,,,forceback,0
+184,1,"Two Minutes to Midnight 5 seconds added",E831,5,"Two Minutes to Midnight","5 SECONDS ADDED.mp4",0,2,,,,normal,0
+185,1,"Two Minutes to Midnight Complete all shots",E832,5,"Two Minutes to Midnight","Two Minutes Complete All Shots.mp4",0,2,,,,normal,0
+186,1,"Two Minutes to Midnight super jackpot",E833,5,"Two Minutes to Midnight","Two Minutes SUPER JACKPOT.mp4",0,2,,,,normal,0
+187,0,"STOP TWO MINUTES TO MIDNIGHT",E839,5,"Two Minutes to Midnight",,0,2,,,,StopPlayer,0
+
+188,,,,,,,,,,,,,
+
+189,1,"Aces Startup",E850,5,AcesHigh,"Aces Start.mp4",0,2,,,,normal,0
+190,1,"Aces High BG",E851,5,AcesHigh,"Aces High Mode Loop.mp4",0,2,,,,forceback,0
+191,1,"Aces 4 Fighters Left",E852,5,AcesHigh,"Aces Shoot Blue Arrows 4 left.mp4",0,2,,,,normal,0
+192,1,"Aces 3 Fighters Left",E853,5,AcesHigh,"Aces 1st fighter shot down 3 left.mp4",0,2,,,,normal,0
+193,1,"Aces 2 Fighters Left",E854,5,AcesHigh,"Aces 2nd fighter shot down 2 left.mp4",0,2,,,,normal,0
+194,1,"Aces 1 Fighter Left",E855,5,AcesHigh,"Aces 3rd fighter shot down 1 left.mp4",0,2,,,,normal,0
+195,1,"Aces Fighter Jackpot",E856,5,AcesHigh,"Aces Fighter Jackpot!.mp4",0,2,,,,normal,0
+196,1,"Aces Shoot for Bomber Lock",E857,5,AcesHigh,"Aces Shoot Lit Shots for Bomber Lock On.mp4",0,2,,,,normal,0
+197,1,"Aces 2 Bombers Left",E858,5,AcesHigh,"Aces 2 bombers remaining.mp4",0,2,,,,normal,0
+198,1,"Aces 1 Bombers Left",E859,5,AcesHigh,"Aces 1 bomber remaining.mp4",0,2,,,,normal,0
+199,1,"Aces Bomber Jackpot",E860,5,AcesHigh,"Aces Bomber Jackpot.mp4",0,2,,,,normal,0
+200,1,"Aces Lock On To FighterACE",E861,5,AcesHigh,"Aces Shoot Lit Shots for Fighter Ace Lock On.mp4",0,2,,,,normal,0
+201,1,"Ace Fighter Locked On!",E862,5,AcesHigh,"Ace Fighter Locked ON!.mp4",0,2,,,,normal,0
+202,1,"Ace Fighter Destroyed",E863,5,AcesHigh,"Ace Fighter Destroyed.mp4",0,2,,,,normal,0
+203,1,"Aces End",E869,5,AcesHigh,"Aces High Total.mp4",0,2,,,,normal,0
+204,0,"STOP ACES",E849,5,AcesHigh,,0,2,,,,StopPlayer,0
+
+205,,,,,,,,,,,,,
+
+206,1,"Can I Play With Madness Start",E870,5,"Can I Play With Madness",Madness.mp4,0,2,,,,forceback,0
+207,1,"Can I Play With Madness",E871,5,"Can I Play With Madness",,0,2,,,,normal,0
+208,1,"Can I Play With Madness",E872,5,"Can I Play With Madness",,0,2,,,,normal,0
+209,1,"Can I Play With Madness",E873,5,"Can I Play With Madness",,0,2,,,,normal,0
+210,1,"Can I Play With Madness",E874,5,"Can I Play With Madness",,0,2,,,,normal,0
+211,1,"Can I Play With Madness End",E875,5,"Can I Play With Madness",,,2,,,,normal,0
+212,0,"STOP THE MADNESS!",E879,5,"Can I Play With Madness",,,2,,,,StopPlayer,0
+
+213,,,,,,,,,,,,,
+
+214,1,"Cyborg MultiBall Start",E920,5,CyborgMultiball,"Cyborg Start Loop.mp4",0,2,,,,forceback,0
+215,1,"Cyborg Collect Lit Shots",E921,5,CyborgMultiball,"Collect Shot Types to Light Cyborg Jackpot.mp4",0,2,,,,normal,0
+216,1,"Cyborg MultiBall Jackpot",E922,5,CyborgMultiball,"Cyborg Jackpot.mp4",0,2,,,,normal,0
+217,1,"Cyborg MultiBall Drop Targets Award",E923,5,CyborgMultiball,"Cyborg Drop Targets Award.mp4",0,2,,,,normal,0
+218,1,"Cyborg MultiBall Shoot orb for Cyborg Jackpot",E924,5,CyborgMultiball,"Shoot the Orb for Cyborg Jackpot.mp4",0,2,,,,normal,0
+219,1,"Cyborg MultiBall",E925,5,CyborgMultiball,,0,2,,,,normal,0
+220,1,"Cyborg MultiBall",E926,5,CyborgMultiball,,0,2,,,,normal,0
+221,1,"Cyborg Multiball Complete",E927,5,CyborgMultiball,"Cyborg Multiball Complete.mp4",0,2,,,,normal,0
+222,0,"STOP CYBORG",E929,5,CyborgMultiball,,0,2,,,,StopPlayer,0
+
+223,,,,,,,,,,,,,
+
+224,1,"Run To The Hills Start",E900,5,"Run To The Hills","Run To The Hills.mp4",0,2,,,,forceback,0
+225,1,"Run To The Hills 1X",E901,5,"Run To The Hills","1x Jackpot.mp4",0,2,,,,normal,0
+226,1,"Run To The Hills 1X SCORE",E902,5,"Run To The Hills","1x Jackpot 5000000.mp4",0,2,,,,normal,0
+227,1,"Run To The Hills Jackpot Award",E903,5,"Run To The Hills","Jackpot Award.mp4",0,2,,,,normal,0
+228,0,"STOP RUN TO THE HILLS",E909,5,"Run To The Hills",,0,2,,,,StopPlayer,0
+
+284,0,,,,,,,,,,,,0
+
+229,0,"NOTB same Screen# as Callouts",,,,,,,,,,,0
+230,1,"NOTB Start",E970,5,NOTB,"NOTB Defeat the Beast!.mp4",0,2,,,,normal,0
+233,1,"NOTB Phase 1",E971,5,NOTB,"NOTB Shoot Any Red Arrow To Parry Attack.mp4",0,2,,,,forceback,0
+232,1,"NOTB Phase 1 Hit",E972,5,NOTB,"NOTB parry red arrow hit.mp4",0,2,,,,normal,0
+282,1,"NOTB Phase 2",E973,5,NOTB,"NOTB Shoot Bullseye.mp4",0,2,,,,forceback,0
+231,1,"NOTB Phase 2 Hit",E974,5,NOTB,"NOTB Bullseye Counter Attack.mp4",0,2,,,,normal,0
+281,1,"NOTB Phase 3",E975,5,NOTB,"NOTB Shoot yellow arrows.mp4",0,2,,,,forceback,0
+234,1,"NOTB Phase 3 Hit",E976,5,NOTB,"NOTB attack!.mp4",0,2,,,,normal,0
+278,1,"NOTB WON",E977,5,NOTB,"NOTB beast defeated.mp4",0,2,,,,normal,0
+235,0,"STOP NUMBER OF THE BEAST",E979,5,NOTB,,0,2,,,,StopPlayer,0
+
+236,,,,,,,,,,,,,
+
+237,1,"Tomb Treasure #1",E951,5,"Tomb Treasures","Pharaoh's Tomb Treasure 1.mp4",0,2,,,,normal,0
+238,1,"Tomb Treasure #2",E952,5,"Tomb Treasures","Pharaoh's Tomb Treasure 2.mp4",0,2,,,,normal,0
+239,1,"Tomb Treasure #3",E953,5,"Tomb Treasures","Pharaoh's Tomb Treasure 3.mp4",0,2,,,,normal,0
+240,1,"Tomb Treasure #4",E954,5,"Tomb Treasures","Pharaoh's Tomb Treasure 4.mp4",0,2,,,,normal,0
+241,1,"Tomb Treasure #5",E955,5,"Tomb Treasures","Pharaoh's Tomb Treasure 5.mp4",0,2,,,,normal,0
+242,1,"Tomb Treasure #6",E956,5,"Tomb Treasures","Pharaoh's Tomb Treasure 6.mp4",0,2,,,,normal,0
+243,1,"Tomb Treasure #7",E957,5,"Tomb Treasures","Pharaoh's Tomb Treasure 7.mp4",0,2,,,,normal,0
+244,1,"Tomb Treasure #8",E958,5,"Tomb Treasures","Pharaoh's Tomb Treasure 8.mp4",0,2,,,,normal,0
+245,1,"Tomb Treasure #9",E959,5,"Tomb Treasures","Pharaoh's Tomb Treasure 9.mp4",0,2,,,,normal,0
+246,1,"Tomb Treasure #10",E960,5,"Tomb Treasures","Pharaoh's Tomb Treasure 10.mp4",0,2,,,,normal,0
+247,1,"Tomb Treasure Award 1",E961,5,"Tomb Treasures","Tomb Award 1.mp4",0,2,,,,normal,0
+248,1,"Tomb Treasure Award 2",E962,5,"Tomb Treasures","Tomb Award 2.mp4",0,2,,,,normal,0
+249,1,"Tomb Treasure Award 3",E963,5,"Tomb Treasures","Tomb Award 3.mp4",0,2,,,,normal,0
+250,0,"STOP TOMB TREASURE",E969,5,"Tomb Treasures",,0,2,,,,StopPlayer,0
+
+251,,,,,,,,,,,,,
+
+252,1,"Revive R",E941,5,Revive,"REVIVE - 1 Letter.mp4",0,2,,,,normal,0
+253,1,"Revive E",E942,5,Revive,"REVIVE - 2 Letters.mp4",0,2,,,,normal,0
+254,1,"Revive V",E943,5,Revive,"REVIVE - 3 Letters.mp4",0,2,,,,normal,0
+255,1,"Revive I",E944,5,Revive,"REVIVE - 4 Letters.mp4",0,2,,,,normal,0
+256,1,"Revive V",E945,5,Revive,"REVIVE - 5 and 6 Letters.mp4",0,2,,,,normal,0
+257,1,"Revive E",E946,5,Revive,"REVIVE - 5 and 6 Letters.mp4",0,2,,,,normal,0
+258,1,REVIVED!,E947,5,Revive,REVIVED!.mp4,0,2,,,,normal,0
+259,0,"STOP REVIVE",E949,5,Revive,,0,2,,,,StopPlayer,0
+
+260,,,,,,,,,,,,,0
+
+261,1,Match00,E400,5,MatchFreeGame,Match00.mp4,0,2,,,,normal,0
+262,1,Match10,E401,5,MatchFreeGame,Match10.mp4,0,2,,,,normal,0
+263,1,Match20,E402,5,MatchFreeGame,Match20.mp4,0,2,,,,normal,0
+264,1,Match30,E403,5,MatchFreeGame,Match30.mp4,0,2,,,,normal,0
+265,1,Match40,E404,5,MatchFreeGame,Match40.mp4,0,2,,,,normal,0
+266,1,Match50,E405,5,MatchFreeGame,Match50.mp4,0,2,,,,normal,0
+267,1,Match60,E406,5,MatchFreeGame,Match60.mp4,0,2,,,,normal,0
+268,1,Match70,E407,5,MatchFreeGame,Match70.mp4,0,2,,,,normal,0
+269,1,Match80,E408,5,MatchFreeGame,Match80.mp4,0,2,,,,normal,0
+270,1,Match90,E409,5,MatchFreeGame,Match90.mp4,0,2,,,,normal,0
+271,0,"STOP MATCH FREEGAME",E409,5,MatchFreeGame,,0,2,,,,StopPlayer,0
+
+276,0,,,,,,,,,,,,0
+
+275,1,"SoulShard Available",E421,5,SoulShards,SoulShardLoop.mp4,0,2,,,,normal,0
+303,1,"SoulShard Collected",E422,5,SoulShards,SoulShard.mp4,0,2,,,,normal,0
+319,1,,,,,,,,,,,,0
+
+286,0,***Music***,,,,,,,,,,,0
+287,1,Powerslave,E1001,4,Music,IM_Powerslave.mp3,100,1,,,,Loop,0
+288,1,Beast,E1002,4,Music,IM_Beast.mp3,100,1,,,,Loop,0
+289,1,Wasted,E1003,4,Music,IM_Wasted.mp3,100,1,,,,Loop,0
+290,1,Trooper,E1004,4,Music,IM_Trooper.mp3,100,1,,,,Loop,0
+291,1,2Minutes,E1005,4,Music,IM_2Minutes.mp3,100,1,,,,Loop,0
+292,1,Aces,E1006,4,Music,IM_Aces.mp3,100,1,,,,Loop,0
+293,1,Madness,E1007,4,Music,IM_Madness.mp3,100,1,,,,Loop,0
+294,1,Flight,E1008,4,Music,IM_Flight.mp3,100,1,,,,Loop,0
+295,1,Hallowed,E1009,4,Music,IM_Hallowed.mp3,100,1,,,,Loop,0
+296,1,Rime,E1010,4,Music,IM_Rime.mp3,100,1,,,,Loop,0
+297,1,Hills,E1011,4,Music,IM_Hills.mp3,100,1,,,,Loop,0
+298,1,Fear,E1012,4,Music,IM_Fear.mp3,100,1,,,,Loop,0
+299,1,Ghost,E1013,4,Music,IM_Ghost.mp3,100,1,,,,Loop,0
+300,1,Wicker,E1014,4,Music,IM_Wicker.mp3,100,1,,,,Loop,0
+301,1,Speed,E1015,4,Music,IM_Speed.mp3,100,1,,,,Loop,0
+321,1,Silence,E1016,4,Music,IM_Speed.mp3,0,1,,,,Loop,0

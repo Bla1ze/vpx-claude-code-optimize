@@ -3235,55 +3235,71 @@ End Sub
 '******************************************************
 
 Function AudioFade(tableobj) ' Fades between front and back of the table (for surround systems or 2x2 speakers, etc), depending on the Y position on the table. "table1" is the name of the table
-    Dim tmp, t2, t4, t8
-    tmp = tableobj.y * 2 / tableheight - 1
-    If tmp > 7000 Then tmp = 7000 ElseIf tmp < -7000 Then tmp = -7000 End If
-    If tmp > 0 Then
-        t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioFade = Csng(t8 * t2)
-    Else
-        tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioFade = Csng(-(t8 * t2))
-    End If
+	Dim tmp, t2, t4, t8
+	tmp = tableobj.y * 2 / tableheight-1
+	If tmp > 7000 Then
+		tmp = 7000
+	ElseIf tmp < -7000 Then
+		tmp = -7000
+	End If
+	If tmp > 0 Then
+		t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioFade = Csng(t8 * t2)
+	Else
+		tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioFade = Csng(-(t8 * t2))
+	End If
 End Function
 
 Function AudioFadeXY(ByVal y) ' AudioFade variant accepting pre-cached Y scalar (avoids COM read)
-    Dim tmp, t2, t4, t8
-    tmp = y * 2 / tableheight - 1
-    If tmp > 7000 Then tmp = 7000 ElseIf tmp < -7000 Then tmp = -7000 End If
-    If tmp > 0 Then
-        t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioFadeXY = Csng(t8 * t2)
-    Else
-        tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioFadeXY = Csng(-(t8 * t2))
-    End If
+	Dim tmp, t2, t4, t8
+	tmp = y * 2 / tableheight-1
+	If tmp > 7000 Then
+		tmp = 7000
+	ElseIf tmp < -7000 Then
+		tmp = -7000
+	End If
+	If tmp > 0 Then
+		t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioFadeXY = Csng(t8 * t2)
+	Else
+		tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioFadeXY = Csng(-(t8 * t2))
+	End If
 End Function
 
 Function AudioPan(tableobj) ' Calculates the pan for a tableobj based on the X position on the table. "table1" is the name of the table
-    Dim tmp, t2, t4, t8
-    tmp = tableobj.x * 2 / tablewidth - 1
-    If tmp > 7000 Then tmp = 7000 ElseIf tmp < -7000 Then tmp = -7000 End If
-    If tmp > 0 Then
-        t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioPan = Csng(t8 * t2)
-    Else
-        tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioPan = Csng(-(t8 * t2))
-    End If
+	Dim tmp, t2, t4, t8
+	tmp = tableobj.x * 2 / tablewidth-1
+	If tmp > 7000 Then
+		tmp = 7000
+	ElseIf tmp < -7000 Then
+		tmp = -7000
+	End If
+	If tmp > 0 Then
+		t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioPan = Csng(t8 * t2)
+	Else
+		tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioPan = Csng(-(t8 * t2))
+	End If
 End Function
 
 Function AudioPanXY(ByVal x) ' AudioPan variant accepting pre-cached X scalar (avoids COM read)
-    Dim tmp, t2, t4, t8
-    tmp = x * 2 / tablewidth - 1
-    If tmp > 7000 Then tmp = 7000 ElseIf tmp < -7000 Then tmp = -7000 End If
-    If tmp > 0 Then
-        t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioPanXY = Csng(t8 * t2)
-    Else
-        tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
-        AudioPanXY = Csng(-(t8 * t2))
-    End If
+	Dim tmp, t2, t4, t8
+	tmp = x * 2 / tablewidth-1
+	If tmp > 7000 Then
+		tmp = 7000
+	ElseIf tmp < -7000 Then
+		tmp = -7000
+	End If
+	If tmp > 0 Then
+		t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioPanXY = Csng(t8 * t2)
+	Else
+		tmp = -tmp : t2 = tmp*tmp : t4 = t2*t2 : t8 = t4*t4
+		AudioPanXY = Csng(-(t8 * t2))
+	End If
 End Function
 
 Function Vol(ball) ' Calculates the volume of the sound based on the ball speed

@@ -1,0 +1,82 @@
+Harry Potter Goblet of Fire (hpgf-052-DOF) — Applied Optimization Changes
+==========================================================================
+Format: what changed, where, why, quantified savings.
+
+---
+
+1. PRE-CACHED TABLE DIMENSIONS (line ~916)
+   Added module-level `tableWidth`, `tableHeight`, `tableHalfWidth`, `BS_d6`.
+   Caches `table1.width`, `table1.height`, `BallSize/6` once at script load.
+   Eliminates COM reads for table dimensions in AudioFade, AudioPan, Pan,
+   and BallShadowUpdate — called per ball per tick.
+
+2. AudioFade/AudioPan/Pan ^10 → REPEATED SQUARING (lines ~922, ~932, ~953)
+   Replaced `tmp ^10` with `t2=tmp*tmp : t4=t2*t2 : t8=t4*t4 : result=t8*t2`
+   (3 multiplications instead of generic VBS exponentiation dispatch).
+   Handled both positive and negative branches separately.
+   At 10ms timer × 3 balls: ~300+ exponentiation dispatches/sec eliminated.
+
+3. BallVel — COM CACHING + ^2 → MULTIPLY (line ~949)
+   Cached `ball.VelX` and `ball.VelY` into locals `vx`, `vy`.
+   Replaced `ball.VelX ^2 + ball.VelY ^2` with `vx*vx + vy*vy`.
+   Eliminates 2 redundant COM reads per call and generic ^2 dispatch.
+
+4. Vol — ^2 → MULTIPLY (line ~940)
+   Replaced `BallVel(ball) ^2` with `v = BallVel(ball) : v * v`.
+   Eliminates 1 exponentiation dispatch per call.
+
+5. COMPLETE RollingTimer REWRITE (line ~975)
+   - Pre-built `BallRollStr(10)` = "fx_ballrolling0".."fx_ballrolling10" at init.
+   - Cached `BOT(b)` into local `curBall` via Set.
+   - Cached `.VelX`, `.VelY`, `.X`, `.Y`, `.Z` into locals once per ball.
+   - Inline BallVel computation: `bvel = INT(SQR(vx*vx + vy*vy))`.
+   - Inline Vol: `Csng(bvel*bvel/2000)` and Pitch: `bvel*20`.
+   - Single BallVel computation reused for all 3 checks (was called 3× per ball).
+   - Reused cached `bx`, `by` for dead-spot detection and broom tracking.
+   At 10ms × 3 balls: ~600 BallVel calls/sec, ~900 COM reads/sec,
+   ~900 string allocs/sec eliminated.
+
+6. BallShadowUpdate REWRITE (line ~754)
+   - Cached `BOT(b).X`, `.Y`, `.Z` into locals `bx`, `by`, `bz`.
+   - Used pre-computed `tableHalfWidth` and `BS_d6` constants.
+   - Pre-computed `xOff = (bx - tableHalfWidth) / 7` once per ball.
+   At 10ms × 3 balls: ~1,200 COM reads/sec + ~300 constant computations/sec eliminated.
+
+7. DUPLICATE RandomBump SUB REMOVED (line ~1191)
+   Second identical `Sub RandomBump` definition removed.
+   Was silently overriding the first (which had a debug.print comment).
+
+8. PRE-BUILT FLASHER MATERIAL STRINGS (line ~922)
+   Added `DomeLitStr(10)` = "domelit0".."domelit10" at script load.
+   Replaced `"domelit" & matdim` with `DomeLitStr(matdim)` in all 6 flasher timer subs.
+   Each flasher runs ~50 ticks per flash cycle at its timer interval.
+   At 6 flashers active: ~300+ string allocs/sec eliminated during flash sequences.
+
+9. OnBallBallCollision ^2 → MULTIPLY (line ~1080)
+   Replaced `Csng(velocity) ^2` with `cv = Csng(velocity) : cv * cv`.
+   Eliminates 1 exponentiation dispatch per ball-ball collision.
+
+---
+
+## SUMMARY
+
+Total COM reads eliminated per second (estimated):
+  - RollingTimer rewrite (×3 balls at 100Hz)                = ~900/sec
+  - BallShadowUpdate rewrite (×3 balls at 100Hz)            = ~1,200/sec
+  - Table dimension caching (audio functions)                = ~600/sec
+  TOTAL reads eliminated: ~2,700+/sec
+
+Function calls eliminated:
+  - RollingTimer BallVel caching (3→1 per ball)              = ~600/sec
+  - RollingTimer inline Vol/Pitch                            = ~600/sec
+
+Exponentiation dispatches eliminated:
+  - AudioFade/AudioPan/Pan ^10 → repeated squaring           = ~300+/sec
+  - BallVel ^2 → multiplication                              = ~300+/sec
+  - Vol ^2 → multiplication                                  = ~100+/sec
+  - OnBallBallCollision ^2 → multiplication                  = per collision
+  TOTAL exponentiation dispatches eliminated: ~700+/sec
+
+String allocations eliminated:
+  - BallRollStr pre-built: ~900/sec (3 balls at 100Hz)
+  - DomeLitStr pre-built: ~300+/sec (6 flashers during flash sequences)
