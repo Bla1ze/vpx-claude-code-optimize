@@ -301,11 +301,22 @@ Replace inline division with multiplication by pre-computed inverse:
   BEFORE: opacity = 1 - dist / falloff
   AFTER:  opacity = 1 - dist * DSInvFalloff
 
+AudioFade/AudioPan use `* 2 / tableheight` and `* 2 / tablewidth` per call.
+These fire 2× per ball per frame from RollingUpdate + RampRollUpdate:
+  Dim InvTWHalf : InvTWHalf = 2 / tablewidth   ' once at init
+  Dim InvTHHalf : InvTHHalf = 2 / tableheight
+
+  ' BEFORE: tmp = tableobj.y * 2 / tableheight - 1
+  ' AFTER:  tmp = tableobj.y * InvTHHalf - 1
+  ' BEFORE: tmp = tableobj.x * 2 / tablewidth - 1
+  ' AFTER:  tmp = tableobj.x * InvTWHalf - 1
+
 Constant trig for fixed angles (e.g. JP MotorTimer):
   Dim cosCenter : cosCenter = cos(Radians(180 - trexcenterangle))  ' once
   ' timer uses cosCenter directly instead of cos() per tick
 
 SAVES: 2-6 divisions per ball per frame eliminated. DynBSFactor^3 eliminated.
+AudioFade/AudioPan: ~400 divisions/sec eliminated (4 balls × 100fps).
 
 
 FIX 12: DISTANCE-SQUARED GATING IN DynamicBSUpdate
@@ -748,6 +759,160 @@ LAMP-STORM AUDIT CHECKLIST:
   [ ] PFLights inner loop uses 0-based indexing
 
 
+FIX 30: INLINE HELPER FUNCTIONS THAT RE-READ COM IN PER-BALL LOOPS
+-------------------------------------------------------------------
+SYMPTOM: FPS rises when ball is off-screen / in trough.
+
+RollingUpdate and RampRollUpdate call small helper functions (BallVel,
+VolPlayfieldRoll, PitchPlayfieldRoll, BallPitch, BallPitchV) per ball per
+frame. Each helper re-reads ball.VelX/VelY from COM and re-computes Sqr().
+The call chain per ball:
+
+  BallVel(ball)              → 2 COM reads + 1 Sqr
+  VolPlayfieldRoll(ball)     → calls BallVel again → +2 COM reads + 1 Sqr
+  PitchPlayfieldRoll(ball)   → calls BallVel again → +2 COM reads + 1 Sqr
+  AudioPan(ball)             → 1 COM read (.x)
+  AudioFade(ball)            → 1 COM read (.y)
+  ball.z check               → 1 COM read
+  ball.VelZ check            → 1 COM read
+  TOTAL: 10 COM reads + 3 Sqr per ball per frame
+
+AFTER inlining with cached locals:
+  bvx = ball.VelX : bvy = ball.VelY : bvz = ball.VelZ : bz = ball.z
+  bv = Int(Sqr(bvx * bvx + bvy * bvy))
+  ' Use bv directly for volume (bv*bv*bv), pitch (bv*bv*15), velocity check
+  TOTAL: 4 COM reads + 1 Sqr per ball per frame
+
+SEARCH: `BallVel(ball)` or `BallVel(rb)` inside RollingUpdate, RampRollUpdate.
+SEARCH: `VolPlayfieldRoll(` and `PitchPlayfieldRoll(` — these always wrap BallVel.
+
+APPLY to RollingUpdate:
+  Dim ball, bv, bvx, bvy, bvz, bz
+  For b = 0 to ubBot
+      Set ball = gBOT(b)
+      bvx = ball.VelX : bvy = ball.VelY : bvz = ball.VelZ : bz = ball.z
+      bv = Int(Sqr(bvx * bvx + bvy * bvy))
+      If bv > 1 AND bz < 30 Then
+          rolling(b) = True
+          PlaySound BallRollStr(b), -1, RollingSoundFactor*0.0005*CSng(bv*bv*bv)*BallRollVolume*VolumeDial, AudioPan(ball), 0, bv*bv*15, 1, 0, AudioFade(ball)
+      ...
+      If bvz < -1 and bz < 55 and bz > 27 Then   ' use cached bvz/bz
+
+APPLY to RampRollUpdate:
+  rvx = rb.VelX : rvy = rb.VelY
+  bv = Int(Sqr(rvx * rvx + rvy * rvy))
+  rvol = RollingSoundFactor * 0.0005 * CSng(bv*bv*bv) * RampRollVolume * VolumeDial
+  ' Pass bv directly to pSlope instead of calling BallPitch/BallPitchV
+
+Leave the original BallVel/VolPlayfieldRoll/PitchPlayfieldRoll functions
+intact — other code (switch hits, etc.) may call them and that's fine.
+Only inline in the per-frame hot loops.
+
+SAVES: 6 COM reads + 2 Sqr per ball per frame. At 4 balls × 60fps =
+1440 COM reads/sec + 480 Sqr/sec eliminated. With RampRollUpdate at
+100Hz: additional ~200 COM reads/sec per active ramp ball.
+
+
+FIX 31: EARLY-EXIT BALL LOOPS WHEN NO BALLS ACTIVE
+-----------------------------------------------------
+SYMPTOM: FPS rises noticeably when ball drains to trough.
+
+BSUpdate, UpdateBallBrightness, and RollingUpdate iterate gBOT every
+frame. When UBound(gBOT) = -1 (no balls) or < lob (only locked balls),
+the loop body never executes but VBScript still evaluates loop setup,
+UBound(), and any pre-loop math (e.g. b_base computation in
+UpdateBallBrightness).
+
+SEARCH: `Sub BSUpdate`, `Sub UpdateBallBrightness`, `Sub RollingUpdate`.
+CHECK: Does each have an early-exit before the ball loop?
+
+PATTERN:
+  Sub BSUpdate
+      Dim ubBS : ubBS = UBound(gBOT)
+      If ubBS < lob Then Exit Sub       ' no active balls beyond locked
+      For s = lob To ubBS
+          ...
+
+  Sub UpdateBallBrightness
+      Dim ubBB : ubBB = UBound(gBOT)
+      If ubBB = -1 Then Exit Sub        ' no balls at all
+      Dim b_base : b_base = 120 * BallBrightness + 135*gilvl   ' AFTER the guard
+      For s = 0 To ubBB
+          ...
+
+Key details:
+- Cache UBound(gBOT) into a local — it's a function call, not a constant.
+- Place the guard BEFORE any per-frame math (b_base etc.) so the entire
+  sub is skipped, not just the loop.
+- RollingUpdate typically already has this (If ubBot = -1 Then Exit Sub).
+  Verify BSUpdate and UpdateBallBrightness do too.
+
+ALSO CHECK: FrameTimer_Timer / GameTimer_Timer. If the table calls
+multiple per-ball subs from a timer, consider a single guard at the
+timer level:
+  Sub FrameTimer_Timer
+      ...
+      If UBound(gBOT) >= 0 Then
+          BSUpdate
+          UpdateBallBrightness
+          RollingUpdate
+      End If
+  End Sub
+This avoids 3 separate UBound calls when there are no balls.
+
+SAVES: When ball is in trough: eliminates all per-ball COM reads, Sqr
+calls, and PlaySound calls. Typical savings: 20-50 COM reads/frame +
+3-8 Sqr/frame + 1-4 PlaySound/frame = 1200-3500 ops/sec.
+
+
+FIX 32: REDUNDANT GEOMETRIC CHECKS — AXIS-ALIGNED InRect
+-----------------------------------------------------------
+SEARCH: `InRect(` called with axis-aligned rectangle constants (all corners
+share the same X or Y values in pairs).
+
+EXAMPLE (UpdateBallBrightness plunger-lane darkening):
+  BEFORE:
+    If bx >= PLLeft And bx <= PLRight And by >= PLTop And by <= PLBottom Then
+        If InRect(bx, by, PLLeft, PLBottom, PLLeft, PLTop, PLRight, PLTop, PLRight, PLBottom) Then
+            d_w = d_w * (PLOffset + PLGain * (by - PLBottom))
+        End If
+    End If
+
+  AFTER:
+    If bx >= PLLeft And bx <= PLRight And by >= PLTop And by <= PLBottom Then
+        d_w = d_w * (PLOffset + PLGain * (by - PLBottom))
+    End If
+
+InRect computes 4 cross-products (16 multiplications + 8 additions) to
+determine if a point is inside a general quadrilateral. But when the quad
+is axis-aligned (a simple rectangle), the bounding-box check on the line
+above is ALREADY the complete containment test. The InRect call is pure
+waste.
+
+HOW TO IDENTIFY: Look at the 8 coordinate arguments to InRect. If:
+  - args 1,3 share an X (ax == bx, left edge)
+  - args 5,7 share an X (cx == dx, right edge)
+  - args 3,5 share a Y (by == cy, top edge)
+  - args 1,7 share a Y (ay == dy, bottom edge)
+then it's axis-aligned and the bounding-box check is sufficient.
+
+SAVES: 16 multiplications + 8 additions per ball per frame when inside
+the bounding box (always for plunger lane balls). Small but free to fix.
+
+
+PER-BALL-PER-FRAME AUDIT CHECKLIST:
+  [ ] BallVel/VolPlayfieldRoll/PitchPlayfieldRoll not called separately
+      in RollingUpdate — inlined with cached COM reads (Fix 30)
+  [ ] AudioFade/AudioPan use pre-computed inverse multipliers (Fix 11)
+  [ ] BSUpdate/UpdateBallBrightness have early-exit when no balls (Fix 31)
+  [ ] UBound(gBOT) cached into local at sub entry, not re-evaluated (Fix 9)
+  [ ] No InRect on axis-aligned rectangles already covered by bounding box (Fix 32)
+  [ ] ball.VelX/VelY/VelZ/z read once into locals, not repeated (Fix 9)
+  [ ] gBOT(b) Set-cached into local ball variable (Fix 9)
+  [ ] Ball drop sound checks use cached bvz/bz, not re-reading COM (Fix 30)
+  [ ] RampRollUpdate: BallPitch/BallPitchV inlined with cached bv (Fix 30)
+
+
 ====================================================================
 VBSCRIPT TRAPS THAT WILL CAUSE RUNTIME ERRORS
 ====================================================================
@@ -801,6 +966,12 @@ After all fixes, grep and verify:
   [ ] CStr(     — zero hits in per-frame light rendering
   [ ] .timerinterval = 1 — should be 10 for flipper timer
   [ ] tnob matches BallRollStr array size
+  [ ] BallVel(  — not called 2+ times on same ball in any per-frame sub (inline)
+  [ ] VolPlayfieldRoll/PitchPlayfieldRoll — inlined in RollingUpdate (not separate calls)
+  [ ] / tableheight, / tablewidth — replaced with * InvTHHalf, * InvTWHalf
+  [ ] UBound(gBOT) — cached to local in every per-ball sub, not re-evaluated
+  [ ] BSUpdate, UpdateBallBrightness — have early-exit when no balls on table
+  [ ] InRect(   — not called on axis-aligned rects already covered by bounding-box
 
 
 ====================================================================
