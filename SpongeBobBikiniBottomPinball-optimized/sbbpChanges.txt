@@ -1,0 +1,458 @@
+sbbp.vbs Optimization Changes
+==============================
+
+All changes target hot paths (timer subs, per-frame loops, per-tick audio functions).
+Init code, event handlers, and one-shot subs were left untouched.
+
+
+FIX 1: FLIPPER TIMER 1ms → 10ms + SHARED GetBalls + PRESS GUARD
+-----------------------------------------------------------------
+Location: Line ~7528 (RightFlipper.timerinterval), RightFlipper_timer sub
+What changed:
+  - RightFlipper.timerinterval = 1  →  10
+  - FlipperNudge now called with shared fBOT array (single GetBalls per tick)
+  - Added press guard: If LFPress = 0 And RFPress = 0 Then Exit Sub
+    Skips FlipperNudge entirely when both flippers are at rest.
+  - FlipperNudge signature changed: added BOT as first parameter, removed internal GetBalls call.
+Why: VPX renders at 60fps. Flipper correction at 100Hz is visually identical to 1000Hz.
+Saves: ~4,500 function calls/sec. When flippers at rest: eliminates 100% of GetBalls + FlipperNudge.
+       GetBalls reduced from 2 per tick (2000/sec at 1000Hz) to 1 per tick (100/sec at 100Hz).
+
+
+FIX 2: FlipperTricks — CACHE startangle AND currentangle
+----------------------------------------------------------
+Location: Line ~7768 (Sub FlipperTricks)
+What changed:
+  - Cached Flipper.startangle into local `sa`, Abs(sa) into `absSa`
+  - Cached Abs(Flipper.currentangle) into local `ca`
+  - All subsequent reads use cached locals instead of COM property reads
+Before:
+  Dir = Flipper.startangle/Abs(Flipper.startangle)
+  If Abs(Flipper.currentangle) > Abs(Flipper.startangle) - 0.05 Then
+After:
+  Dim sa: sa = Flipper.startangle
+  Dim Dir: Dir = sa / Abs(sa)
+  Dim ca: ca = Abs(Flipper.currentangle)
+  Dim absSa: absSa = Abs(sa)
+  If ca > absSa - 0.05 Then
+Why: startangle is constant but still a COM read; currentangle read 3x per call.
+Saves: ~10,000+ COM reads/sec at original 1000Hz (still ~1000/sec at 100Hz).
+
+
+FIX 3: FlipperNudge — ACCEPT SHARED BOT + CACHE currentangle
+--------------------------------------------------------------
+Location: Line ~7543 (Sub FlipperNudge)
+What changed:
+  - Signature changed to accept BOT array as first parameter
+  - Removed internal GetBalls call
+  - Cached Flipper1.currentangle into local `ca1`
+  - Cached BOT(b).x/y into locals bx/by for first loop
+Saves: ~4,000 COM reads/sec. GetBalls eliminated entirely (shared from timer).
+
+
+FIX 4: FlipperTrigger — CACHE ALL FLIPPER PROPS + INLINE TRIG
+---------------------------------------------------------------
+Location: Line ~7680 (Function FlipperTrigger)
+What changed:
+  - Cache Flipper.x, .y, .currentangle, .Length into locals fx, fy, fca, flen
+  - Compute frad = (fca + 90) * PIover180 once
+  - Inline Atn2 call with cached locals instead of calling AnglePP(Flipper.x, Flipper.y, ...)
+  - Inline Distance with dx*dx + dy*dy instead of calling Distance(ballx,bally,Flipper.x,Flipper.y)
+  - DistanceFromFlipper also updated to cache flipper props and use PIover180
+Before (across FlipperTrigger + DistanceFromFlipper + AnglePP + Distance):
+  6-10 COM reads of Flipper.x/.y/.currentangle per call
+After:
+  4 COM reads total (fx, fy, fca, flen), rest are locals
+Saves: ~30,000 COM reads/sec at 1000Hz with 4+ balls (still ~3,000/sec at 100Hz).
+
+
+FIX 5: Distance — ^2 → x*x
+-----------------------------
+Location: Line ~7666 (Function Distance)
+What changed:
+  Before: Distance = SQR((ax - bx)^2 + (ay - by)^2)
+  After:  Dim dx, dy: dx = ax - bx: dy = ay - by
+          Distance = SQR(dx * dx + dy * dy)
+Why: ^ operator calls Exp(2*Log(x)) internally. Multiplication is a single FPU op.
+Saves: ~8,000 exponentiation ops/sec (called from FlipperTrigger, FlipperDeactivate, etc.)
+
+
+FIX 6: PRE-COMPUTED TRIG CONSTANTS
+------------------------------------
+Location: Line ~7595 (after PI declaration)
+What changed:
+  Added:  Dim PIover180: PIover180 = PI / 180
+          Dim d180overPI: d180overPI = 180 / PI
+  Replaced in dSin:    degrees * Pi/180  →  degrees * PIover180
+  Replaced in dCos:    degrees * Pi/180  →  degrees * PIover180
+  Replaced in Radians: Degrees * PI/180  →  Degrees * PIover180
+  Replaced in AnglePP: * 180/PI          →  * d180overPI
+Why: Eliminates 2 divisions per trig call.
+Saves: ~8,000 divisions/sec from FlipperTrigger chain at full rate.
+
+
+FIX 7: AUDIO FUNCTIONS — ELIMINATE ALL EXPONENTIATION
+------------------------------------------------------
+Location: Lines ~8725-8781 (AudioFade, AudioPan, Vol, Volz, BallVel, VolPlayfieldRoll, PitchPlayfieldRoll)
+
+AudioFade/AudioPan (^10 → multiply chain):
+  Before: AudioFade = Csng(tmp ^10)
+  After:  Dim t2,t4,t8: t2=tmp*tmp: t4=t2*t2: t8=t4*t4
+          AudioFade = Csng(t8 * t2)
+  Negative branch uses same chain on -tmp, negates result.
+
+BallVel (^2 → x*x + COM cache):
+  Before: BallVel = INT(SQR((ball.VelX ^2) + (ball.VelY ^2)))
+  After:  Dim vx, vy: vx = ball.VelX: vy = ball.VelY
+          BallVel = INT(SQR(vx * vx + vy * vy))
+
+Vol (^2 → x*x):
+  Before: Vol = Csng(BallVel(ball) ^2)
+  After:  Dim bv: bv = BallVel(ball): Vol = Csng(bv * bv)
+
+Volz (^2 → x*x + COM cache):
+  Before: Volz = Csng((ball.velz) ^2)
+  After:  Dim vz: vz = ball.velz: Volz = Csng(vz * vz)
+
+VolPlayfieldRoll (^3 → x*x*x):
+  Before: VolPlayfieldRoll = RollingSoundFactor * 0.0005 * Csng(BallVel(ball) ^3)
+  After:  Dim bv: bv = BallVel(ball)
+          VolPlayfieldRoll = RollingSoundFactor * 0.0005 * Csng(bv * bv * bv)
+
+PitchPlayfieldRoll (^2 → x*x):
+  Before: PitchPlayfieldRoll = BallVel(ball) ^2 * 15
+  After:  Dim bv: bv = BallVel(ball): PitchPlayfieldRoll = bv * bv * 15
+
+BallSpeed (^2 → x*x + COM cache):
+  Before: BallSpeed = SQR(ball.VelX^2 + ball.VelY^2 + ball.VelZ^2)
+  After:  Dim vx, vy, vz: vx = ball.VelX: vy = ball.VelY: vz = ball.VelZ
+          BallSpeed = SQR(vx * vx + vy * vy + vz * vz)
+
+Why: ^ calls Exp(N*Log(x)). Multiply chains are 3-10x faster.
+Saves: ~5,000+ exponentiation ops/sec across all audio functions.
+
+
+FIX 8: PRE-BUILT STRING ARRAYS
+--------------------------------
+Location: Line ~7608 (module level, after PI constants)
+What changed:
+  Added pre-built arrays:
+    Dim BallRollStr(5)   — "BallRoll_0" through "BallRoll_5"
+    Dim RampLoopStr(6)   — "RampLoop1" through "RampLoop6"
+    Dim WireLoopStr(6)   — "wireloop1" through "wireloop6"
+  Replaced all hot-path string concatenations:
+    StopSound("BallRoll_" & b)  →  StopSound BallRollStr(b)
+    PlaySound("RampLoop" & x)   →  PlaySound RampLoopStr(x)
+    StopSound("wireloop" & x)   →  StopSound WireLoopStr(x)
+  Applied in: RollingUpdate, RampRollUpdate, WRemoveBall
+Why: String concatenation allocates a new string on every call. Array lookup is zero-alloc.
+Saves: ~1,500 string allocs/sec from RollingUpdate, ~500/sec from RampRollUpdate.
+
+
+FIX 9: COM PROPERTY CACHING IN DynamicBSUpdate
+------------------------------------------------
+Location: Line ~6916 (Sub DynamicBSUpdate)
+What changed:
+  - Cache BOT(s).X, .Y, .Z into locals bx, by, bz at top of each ball loop iteration
+  - Cache DSSources(iii)(0), DSSources(iii)(1) into locals sx, sy in source loop
+  - All subsequent reads use cached locals
+  - Also cached AnotherSource's DSSources into asx, asy
+Before: 15+ COM reads per ball per frame (BOT(s).X read 4-8 times per iteration)
+After: 3 COM reads per ball (bx, by, bz), rest are locals
+Saves: ~3,000-6,000 COM reads/sec with 5 balls.
+
+
+FIX 10: PRE-COMPUTED MODULE-LEVEL CONSTANTS
+---------------------------------------------
+Location: Line ~7598 (after PI declaration)
+What changed:
+  Added:
+    Dim BS_d10: BS_d10 = BallSize / 10
+    Dim BS_d5:  BS_d5  = BallSize / 5
+    Dim BS_d4:  BS_d4  = BallSize / 4
+    Dim BS_d2:  BS_d2  = BallSize / 2
+    Dim BS_dAM: BS_dAM = BallSize / AmbientMovement
+    Dim TW_d2:  TW_d2  = tablewidth / 2
+    Dim DynBSFactor2: DynBSFactor2 = DynamicBSFactor * DynamicBSFactor
+    Dim DynBSFactor3: DynBSFactor3 = DynamicBSFactor * DynamicBSFactor * DynamicBSFactor
+  Replaced in DynamicBSUpdate:
+    BallSize/10 → BS_d10, BallSize/5 → BS_d5, BallSize/4 → BS_d4
+    BallSize/2 → BS_d2, BallSize/AmbientMovement → BS_dAM
+    tablewidth/2 → TW_d2
+    DynamicBSFactor^2 → DynBSFactor2, DynamicBSFactor^3 → DynBSFactor3
+  Also replaced in RollingUpdate:
+    BallSize/4 → BS_d4, BallSize/2 → BS_d2, BallSize/5 → BS_d5
+Why: Division is expensive in VBScript. These are all constant expressions computed once at script load.
+Saves: 2-6 divisions per ball per frame eliminated. DynBSFactor^2/^3 eliminated.
+
+
+FIX 11: SHARED gBOT — ELIMINATE REDUNDANT GetBalls
+----------------------------------------------------
+Location: Line ~896 (GameTimer_Timer), plus RollingUpdate, UpdateBallBrightness, Cor.Update, DynamicBSUpdate
+What changed:
+  - Added module-level: Dim gBOT: gBOT = Array()
+  - GameTimer_Timer now calls gBOT = GetBalls once at the top
+  - Cor.Update uses gBOT instead of internal getballs call
+  - RollingUpdate uses BOT = gBOT instead of BOT = GetBalls
+  - UpdateBallBrightness uses BOT = gBOT instead of BOT = getballs
+  - DynamicBSUpdate (FrameTimer) uses BOT = gBOT instead of BOT = GetBalls
+Before: 4 separate GetBalls calls per GameTimer tick (Cor.Update, RollingUpdate, UpdateBallBrightness, DynamicBSUpdate)
+After: 1 centralized GetBalls in GameTimer_Timer, shared via gBOT
+Why: GetBalls allocates a new array + COM objects every call.
+Saves: ~300 GetBalls allocations/sec (3 eliminated × 100Hz).
+
+
+FIX 12: RollingUpdate — COM CACHING
+-------------------------------------
+Location: Line ~8468 (Sub RollingUpdate)
+What changed:
+  - Cache BOT(b).z into local bz, BOT(b).VelZ into local bvz
+  - Reuse bz for shadow height calc, ball drop check, ramp boost check
+  - Uses pre-built BallRollStr and pre-computed BS_d4/BS_d5/BS_d2 constants
+Why: Each BOT(b).z is a COM property read. Caching into local is pure VBScript stack access.
+Saves: ~3,000 COM reads/sec with 5 balls at 100Hz.
+
+
+FIX 13: CoRTracker.Update — PRE-ALLOCATE + USE gBOT
+-----------------------------------------------------
+Location: Line ~7994 (Class CoRTracker)
+What changed:
+  - Class_Initialize: pre-allocate arrays to tnob instead of 0
+    Before: redim ballvel(0) : redim ballvelx(0) : redim ballvely(0)
+    After:  redim ballvel(tnob) : redim ballvelx(tnob) : redim ballvely(tnob)
+  - Update: use gBOT instead of getballs
+  - Removed highestID scan loop (no longer needed with fixed-size arrays)
+  - Added bounds check: if bid <= tnob
+  - Added early exit: If UBound(gBOT) = -1 Then Exit Sub
+Why: ReDim checks ran every tick. Pre-allocation eliminates them. gBOT eliminates GetBalls.
+Saves: ~100 GetBalls/sec + ~300 ReDim checks/sec eliminated.
+
+
+FIX 14: UpdateBallBrightness — COM CACHING + SIMPLIFY
+-------------------------------------------------------
+Location: Line ~14195 (Sub UpdateBallBrightness)
+What changed:
+  - Uses gBOT instead of getballs
+  - Added early exit: If UBound(BOT) = -1 Then Exit Sub
+  - Cache BOT(s).x, .y, .z into locals bx, by, bz
+  - Simplified color assignment: since b_r = b_g = b_b, compute once and use
+    b_r + (b_r * 256) + (b_r * 65536) instead of separate b_g/b_b variables
+Why: Eliminates redundant COM reads and simplifies the color calculation.
+Saves: ~600 COM reads/sec.
+
+
+FIX 15: LStateController.Update — MULTIPLE OPTIMIZATIONS
+----------------------------------------------------------
+Location: Lines 12181, 12894, 13070, 12981 (Class LStateController)
+
+HasKeys: error-handling → .Count (Line 13070):
+  Before: On Error Resume Next / o.Keys() / check Err.Number
+  After:  HasKeys = (o.Count > 0)
+  Why: Error handling is extremely expensive. .Count is a direct integer read.
+       HasKeys is called 5 times per Update() tick.
+
+AssignStateForFrame: Remove+Add → .Item in-place update (Line 12181):
+  Before: m_currentFrameState.Remove key : m_currentFrameState.Add key, state
+  After:  Set m_currentFrameState.Item(key) = state  (when key exists)
+  Why: Remove+Add is 3 hash operations. .Item = is 1 hash operation.
+
+CStr → CLng for color comparison (Line 12981):
+  Before: If Not CStr(tmpLight.Color) = CStr(c) Then
+  After:  If CLng(tmpLight.Color) <> CLng(c) Then
+  Why: CStr allocates a new string per call. CLng is a stack-only integer conversion.
+       This runs for every light with color data per frame.
+  Saves: ~24,000 string allocations/sec at 60+ lights.
+
+Cache m_on dictionary lookups (Line 12894):
+  Before: (new FrameState)(lcItem.level, m_on(lightKey).Color, m_on(lightKey).Idx)
+  After:  (new FrameState)(lcItem.level, lcItem.Color, lcItem.Idx)
+  Why: lcItem already holds the same object. 2 redundant hash lookups per light per frame.
+
+
+FIX 16: VR FLASHER FADES — ^1.5/^2/^2.5 → MULTIPLY CHAINS
+-------------------------------------------------------------
+Location: Lines ~13944-14118 (VRBGFLSP_1_timer, VRBGFLPA_1_timer, VRBGFLBump1_1_timer, VRBGFLBump2_1_timer)
+What changed:
+  Pre-compute power values into locals at top of each timer sub:
+    sp_s2 = sp_s * sp_s           (replaces ^2)
+    sp_s15 = sp_s * Sqr(sp_s)     (replaces ^1.5)
+    sp_s25 = sp_s2 * Sqr(sp_s)    (replaces ^2.5)
+  All 4 VR flasher timer subs updated with same pattern.
+Before: 4-5 separate ^1.5/^2/^2.5 calls per timer tick per flasher
+After: 1 Sqr + 2-3 multiplications, reused across all objects
+Why: ^1.5 calls Exp(1.5*Log(x)). Sqr + multiply is much cheaper.
+Saves: ~500-2,000 exponentiation ops/sec (only active in VR mode, self-disabling timers).
+
+
+BUGFIX: DynamicBSUpdate gBOT → GetBalls
+-----------------------------------------
+Location: Line ~6922 (Sub DynamicBSUpdate)
+What changed:
+  - Restored BOT = GetBalls instead of BOT = gBOT
+Why: DynamicBSUpdate runs from FrameTimer_Timer (display frame rate), NOT GameTimer_Timer.
+gBOT is only updated in GameTimer_Timer (10ms). Between ticks, ball objects could be
+invalidated (drained/destroyed), causing COM errors when accessing .X/.Y/.Z on stale refs.
+The other two gBOT consumers (RollingUpdate, UpdateBallBrightness) are called from
+GameTimer_Timer, so gBOT is correct for them.
+
+
+BUGFIX: CoRTracker dynamic array resizing
+-------------------------------------------
+Location: Line ~7994 (Class CoRTracker, Sub Update)
+What changed:
+  - Restored dynamic ReDim Preserve when ball ID exceeds UBound(ballvel)
+  - Removed fixed `if bid <= tnob` guard that silently dropped high-ID balls
+Why: VPX ball IDs increment and are never reused. After several drains and launches,
+IDs exceed tnob (5). The Dampener class accesses cor.ballvel(aBall.id) without bounds
+checking, causing "Subscript out of range" at runtime.
+
+
+FIX 17: DISTANCE-SQUARED GATING IN DynamicBSUpdate
+----------------------------------------------------
+Location: Line ~6991 (inner source loop)
+What changed:
+  - Pre-compute falloffSq = falloff * falloff and invFalloff = 1/falloff at sub entry
+  - Compute dx = bx - sx, dy = by - sy, dSq = dx*dx + dy*dy for each ball-source pair
+  - Gate with dSq < falloffSq instead of calling DistanceFast for every pair
+  - DistanceFast only called for pairs that pass the gate (reuses cached dx, dy)
+  - All /falloff divisions replaced with *invFalloff (3 instances)
+Before: DistanceFast called for every ball-source pair, /falloff division per shadow
+After: Simple multiply+compare gate eliminates most DistanceFast calls; invFalloff
+       replaces division with multiplication for within-range shadows
+Saves: With 5 balls × 4 sources, eliminates ~15 DistanceFast calls/frame (those out of
+       range). At 60fps = ~900 DistanceFast calls/sec + ~180 divisions/sec eliminated.
+
+
+FIX 18: GUARD .visible WRITES IN DynamicBSUpdate CLEANUP
+----------------------------------------------------------
+Location: Line ~6925 (shadow cleanup loop)
+What changed:
+  - Guard all 4 .visible = 0 writes with If .visible Then checks
+Before: 4 unconditional COM writes per deleted ball slot per frame
+After: Only writes when value actually changes (once on transition, then skipped)
+Saves: With 5 ball slots and typically 1-2 active balls, 12-16 COM writes/frame
+       eliminated in steady state. At 60fps = ~720-960 COM writes/sec.
+
+
+FIX 19: CACHE m_pulse(lightKey) + IN-PLACE DICTIONARY UPDATE
+--------------------------------------------------------------
+Location: Line ~12910 (LStateController.Update, pulse loop)
+What changed:
+  - Cache m_pulse(lightKey) into local pState once per iteration
+  - Replace 8 dictionary lookups per pulse per tick with 1
+  - Replace Remove+Add in the else branch with Set m_pulse.Item(lightKey) = ...
+    (in-place update: 1 hash op instead of 3)
+Before: 8 hash lookups + Remove+Add (3 ops) = 11 dictionary ops per pulse per tick
+After: 1 hash lookup + in-place Set (1 op) = 2 dictionary ops per pulse per tick
+Saves: With 10 active pulses at 100Hz = ~9,000 dictionary ops/sec eliminated.
+
+
+FIX 20: CACHE FRAMESTATE + Lights(idx) IN RENDER LOOP
+-------------------------------------------------------
+Location: Line ~13018 (LStateController.Update, render loop)
+What changed:
+  - Cache m_currentFrameState(frameStateKey) into local fsCached once per iteration
+  - Cache fsCached.level into local fsLevel (used in Lampz.state and .State assignments)
+  - Cache Lights(idx) into local lt in the single-light (non-array) branch
+  - Eliminates 3 dictionary lookups of m_currentFrameState per light per frame
+  - Eliminates 4+ COM reads of Lights(idx) per light per frame (color, colorFull, Name, State)
+Before: 3 dict lookups + 4 COM reads per light per frame
+After: 1 dict lookup + 1 COM read per light per frame
+Saves: With 60 lights at 100Hz = ~18,000 dict ops/sec + ~18,000 COM reads/sec eliminated.
+
+
+FIX 21: CACHE BOT(b) IN RollingUpdate
+---------------------------------------
+Location: Line ~8493 (Sub RollingUpdate, main ball loop)
+What changed:
+  - Set ball = BOT(b) once at top of each iteration
+  - Replace all BOT(b) references with cached local ball
+  - Eliminates repeated Variant array indexing per ball per tick
+Before: BOT(b) accessed 10-12 times per ball per tick (each is array index + COM dispatch)
+After: 1 array index per ball, rest are local variable reads
+Saves: With 5 balls at 100Hz = ~5,000 array lookups/sec eliminated.
+
+
+FIX 22: REPLACE ^2 IN TargetBouncer
+-------------------------------------
+Location: Line ~7869 (Sub TargetBouncer)
+What changed:
+  - vel^2 → vel*vel, vratio^2 → vratio*vratio
+  - Cache aBall.velz * aBall.velz into local vz2
+Why: ^ calls Exp(N*Log(x)). Multiply is a single FPU op.
+Saves: 3 exponentiation ops per target hit.
+
+
+FIX 23: REPLACE ^2 IN OnBallBallCollision
+-------------------------------------------
+Location: Line ~9219 (Sub OnBallBallCollision)
+What changed:
+  - Csng(velocity)^2 → vel2*vel2 where vel2 = Csng(velocity)
+Why: Same as FIX 22.
+Saves: 1 exponentiation op per ball-ball collision.
+
+
+FIX 24: /100 DIVISION → *Inv100 IN RENDER LOOP
+------------------------------------------------
+Location: Lines ~13093, ~13112 (LStateController.Update render loop)
+What changed:
+  - Added `Dim Inv100: Inv100 = 0.01` at module level
+  - Replaced `fsLevel/100` with `fsLevel*Inv100` in both array and single light branches
+Why: Division is slower than multiplication; called for every rendered light every tick.
+Saves: ~6,000 divisions/sec → multiplications (60 lights × 100Hz).
+
+FIX 25: CACHE Lights(idx) IN RENDER LOOP
+-----------------------------------------
+Location: Lines ~13079-13081 (LStateController.Update render loop)
+What changed:
+  - Cached `lightObj = Lights(idx)` once before the `IsArray(lightObj)`/`For Each x in lightObj` branch
+  - Single-light Else branch now uses cached `lightObj` instead of second `Lights(idx)` lookup
+Why: Lights(idx) is a dictionary/array lookup called twice (IsArray + iteration). Cache eliminates redundant lookup.
+Saves: ~6,000 dictionary lookups/sec eliminated (60 lights × 100Hz).
+
+FIX 26: CACHE Lights(idx) IN GetTmpLight
+------------------------------------------
+Location: Lines ~12853-12866 (GetTmpLight private function)
+What changed:
+  - Cached `Lights(idx)` into local `lo` (and `Lampz.obj(idx)` into `lo2`) before IsArray check
+  - Eliminates triple lookup per call (IsArray + array(0) or direct access)
+Why: GetTmpLight called for every light with color change (~30-40 lights × 100Hz).
+Saves: ~3,000-4,000 dictionary lookups/sec eliminated.
+
+FIX 27: InvBS_dAM PRE-COMPUTED RECIPROCAL
+-------------------------------------------
+Location: Lines ~6943-6979 (DynamicBSUpdate), module-level constants
+What changed:
+  - Added `Dim InvBS_dAM: InvBS_dAM = 1 / BS_dAM` at module level
+  - Replaced all 6 `/(BS_dAM)` with `*(InvBS_dAM)` in shadow position calculations
+Why: Division is slower than multiplication; 6 instances per ball per frame.
+Saves: ~1,500+ divisions/sec → multiplications (5 balls × 6 instances × ~50fps).
+
+FIX 28: PULSE LOOP — IN-PLACE .Item() UPDATE
+----------------------------------------------
+Location: Lines ~12926-12932 (LStateController.Update pulse loop)
+What changed:
+  - When pulse loops (pulseCount > 0), uses `Set m_pulse.Item(lightKey) = ...` instead of Remove+Add
+  - Remove only fires when pulseCount = 0 (pulse truly done)
+Why: Remove+Add = 3 hash operations + allocation; in-place .Item() = 1 hash operation.
+Saves: ~50-100 redundant hash ops/sec during active pulse sequences.
+
+======================================================================
+VERIFICATION CHECKLIST
+======================================================================
+
+  [x] \^        — zero hits in entire file (all replaced with multiply chains)
+  [x] GetBalls  — 1 in GameTimer, 1 in FrameTimer (DynamicBSUpdate), 1 in flipper timer (behind press guard), 1 in FlipperDeactivate (event)
+  [x] " &       — no string concat in timer subs or per-frame loops (all pre-built)
+  [x] Pi / 180  — zero hits in active code (all use PIover180)
+  [x] 180 / PI  — zero hits in active code (all use d180overPI)
+  [x] TypeName( — not present in per-frame code
+  [x] Execute " — not present in per-event code
+  [x] CStr(     — removed from per-frame light rendering (now CLng)
+  [x] .timerinterval = 1 — changed to 10 for flipper timer
+  [x] tnob (5) matches BallRollStr array size (0-5)
+  [x] /falloff  — replaced with *invFalloff in DynamicBSUpdate
+  [x] m_pulse   — cached into local, in-place update via Set .Item()
+  [x] m_currentFrameState — cached into local fsCached in render loop
+  [x] Lights(idx) — cached into local lt in single-light render path
+  [x] BOT(b)    — cached into local ball in RollingUpdate
