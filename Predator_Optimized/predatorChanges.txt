@@ -1,0 +1,141 @@
+Predator (Gottlieb 1986) — Applied Optimization Changes
+========================================================
+Format: what changed, where, why, quantified savings.
+
+---
+
+1. FLIPPER TIMER 1ms → 10ms (line ~3238)
+   Changed `RightFlipper.timerinterval = 1` to `RightFlipper.timerinterval = 10`.
+   Reduces FlipperTricks + FlipperNudge call frequency from 1000/sec to 100/sec.
+   Eliminates ~3,600 function calls/sec (2 FlipperTricks + 2 FlipperNudge × 900 saved).
+   Single biggest per-tick win on this table.
+
+2. FLIPPERNUDGE — SHARED GETBALLS + COM CACHING (line ~3241, ~3250)
+   Moved `GetBalls` call from inside FlipperNudge (called 2× per tick) to
+   RightFlipper_timer (called once), passing the result to both FlipperNudge calls.
+   Cached `Flipper1.currentangle` into local `f1ca`.
+   Cached `BOT(b).x`, `BOT(b).y` into locals in the ball loops.
+   Eliminates 1 GetBalls + ~4 COM reads per tick at 100Hz.
+
+3. FLIPPERTRICKS — COM CACHING (line ~3418)
+   Cached `Flipper.startangle` and `Flipper.currentangle` into locals `fsa`, `fca`.
+   Pre-computed `absFca = Abs(fca)` once (was computed 3× per call).
+   At 100Hz × 2 calls: ~400-600 COM reads/sec eliminated.
+
+4. FLIPPERTRIGGER — COM CACHING + INLINE DISTANCEFROMFLIPPER (line ~3329)
+   Cached `Flipper.x`, `Flipper.y`, `Flipper.currentangle` into locals.
+   Inlined DistancePL call with cached values, eliminating redundant COM reads.
+   Eliminates 6+ COM reads per FlipperTrigger call.
+
+5. PRE-COMPUTED TRIG CONSTANTS (line ~2087)
+   Added `PIover180 = PI / 180` and `d180overPI = 180 / PI` at script load.
+   Updated Radians and AnglePP to use pre-computed constants.
+   Eliminates a division per trig call in the hot flipper path.
+
+6. DISTANCE ^2 → MULTIPLY (line ~3305)
+   Replaced `(ax - bx)^2 + (ay - by)^2` with `dx*dx + dy*dy` using cached locals.
+
+7. BALLSPEED — COM CACHING + ^2 → MULTIPLY (line ~3166)
+   Cached `ball.VelX`, `.VelY`, `.VelZ` into locals.
+   Replaced `^2` with multiplication. Eliminates 3 COM reads per call.
+
+8. AUDIOFADE/AUDIOPAN ^10 → REPEATED SQUARING (lines ~1460, ~1477)
+   Replaced `tmp ^10` with `t2=tmp*tmp : t4=t2*t2 : t8=t4*t4 : result=t8*t2`
+   (3 multiplications instead of generic VBS exponentiation dispatch).
+   At GameTimer rate × balls: ~300+ exponentiation dispatches/sec eliminated.
+
+9. PAN ^10 → REPEATED SQUARING + TABLE1.WIDTH → TABLEWIDTH (line ~927)
+   Same repeated squaring optimization as AudioFade/AudioPan.
+   Also replaced `table1.width` COM read with pre-cached `tablewidth` variable.
+
+10. BALLVEL — COM CACHING + ^2 → MULTIPLY (line ~1506)
+    Cached `ball.VelX` and `ball.VelY` into locals `vx`, `vy`.
+    Replaced `(ball.VelX ^2) + (ball.VelY ^2)` with `vx*vx + vy*vy`.
+
+11. VOL/VOLZ/VOLPLAYFIELDROLL/PITCHPLAYFIELDROLL — ^2/^3 → MULTIPLY (lines ~1494-1516)
+    Vol: `BallVel(ball)^2` → `v = BallVel(ball) : CSng(v * v)`
+    Volz: `(ball.velz)^2` → `vz = ball.velz : CSng(vz * vz)`
+    VolPlayfieldRoll: `BallVel(ball)^3` → `bv*bv*bv`
+    PitchPlayfieldRoll: `BallVel(ball)^2` → `bv*bv`
+
+12. COMPLETE ROLLINGUPDATE REWRITE (line ~2234)
+    - Cached `gBOT(b).X`, `.Y`, `.Z`, `.VelX`, `.VelY`, `.VelZ` into locals.
+    - Inline BallVel computation: `bvel = Int(Sqr(vx*vx + vy*vy))`.
+    - Inline VolPlayfieldRoll and PitchPlayfieldRoll.
+    - Single BallVel computation reused for all checks (was called 3× per ball).
+    - Used pre-built BallRollStr array.
+    At GameTimer rate × balls: ~600 BallVel calls/sec, ~900 COM reads/sec eliminated.
+
+13. BALLSHADOWUPDATE — COM CACHING + PRE-COMPUTED CONSTANTS (line ~970)
+    Cached `BOT(b).X`, `.Y`, `.Z` into locals `bx`, `by`, `bz`.
+    Used pre-computed `tableHalfWidth`, `BS_d6`, `InvTW7` constants.
+    Pre-computed `xOff = (bx - tableHalfWidth) * InvTW7` once per ball.
+    Eliminates ~6 COM reads + ~3 divisions per ball per tick.
+
+14. CoRTracker — PRE-ALLOCATE + INLINE BALLSPEED + COM CACHING (line ~1257)
+    Pre-sized arrays to `tnob` at init (eliminates ReDim + highestID loop per tick).
+    Inline BallSpeed: `Sqr(vx*vx + vy*vy + vz*vz)`.
+    Cached `b.velx`, `b.vely`, `b.velz`, `b.id` into locals.
+
+15. OnBallBallCollision ^2 → MULTIPLY (line ~2035)
+    Replaced `CSng(velocity) ^2` with `cv = CSng(velocity) : cv * cv`.
+
+16. TargetBouncer ^2 → MULTIPLY (line ~1243)
+    Replaced `vel^2`, `aBall.velz^2`, `vratio^2` with multiplication.
+    Cached `aBall.velz` into local.
+
+17. FLIPPERTIMER — WRITE GUARDS + COM CACHING (line ~953)
+    Cached `LeftFlipper.currentangle` and `RightFlipper.currentangle` once.
+    Added change detection: only writes RotZ to shadows/prims when angle changes.
+    Eliminates 4 redundant COM writes when flippers are idle.
+
+18. PRE-BUILT STRING ARRAYS (line ~50)
+    Added `BallRollStr(5)` = "BallRoll_0".."BallRoll_5" at script load.
+    Eliminates per-tick string concatenation in RollingUpdate.
+
+19. PRE-COMPUTED BALLSIZE/TABLE CONSTANTS (line ~50)
+    Added `BS_d6`, `tableHalfWidth`, `InvTW7` at script load.
+    Used in BallShadowUpdate instead of per-ball division.
+
+---
+
+## SUMMARY
+
+Total COM reads eliminated per second (estimated):
+  - FlipperNudge shared GetBalls + COM caching (at 100Hz)   = ~400/sec
+  - FlipperTricks COM caching (×2 at 100Hz)                 = ~600/sec
+  - FlipperTrigger COM caching (per nudge call)              = ~200/sec
+  - RollingUpdate rewrite (per ball at timer rate)           = ~900/sec
+  - BallShadowUpdate COM caching (per ball at timer rate)    = ~300/sec
+  - CoRTracker inline + caching                              = ~300/sec
+  TOTAL reads eliminated: ~2,700+/sec
+
+Function calls eliminated:
+  - FlipperTricks 1ms→10ms                                  = ~3,600/sec
+  - FlipperNudge shared GetBalls                             = ~100/sec
+  - RollingUpdate BallVel inlining (3→0 per ball)            = ~600/sec
+  - CoRTracker BallSpeed inlining                            = ~300/sec
+  - CoRTracker ReDim + highestID loop eliminated             = ~100/sec
+
+Exponentiation dispatches eliminated:
+  - AudioFade/AudioPan/Pan ^10 → repeated squaring           = ~400+/sec
+  - BallVel ^2 → multiplication                              = ~300+/sec
+  - Vol/Volz ^2 → multiplication                             = ~200+/sec
+  - VolPlayfieldRoll ^3 → multiplication                     = ~100+/sec
+  - PitchPlayfieldRoll ^2 → multiplication                   = ~100+/sec
+  - BallSpeed ^2 → multiplication                            = ~300+/sec
+  - Distance ^2 → multiplication                             = per flipper path
+  - OnBallBallCollision ^2 → multiplication                  = per collision
+  - TargetBouncer ^2 → multiplication                        = per target hit
+  TOTAL exponentiation dispatches eliminated: ~1,400+/sec
+
+Division eliminated:
+  - PIover180/d180overPI pre-computed                         = per trig call
+  - BallSize/6, Table1.Width/2, /7 pre-computed              = per ball per shadow tick
+  - Table1.width COM read in Pan → cached tablewidth         = per Pan call
+
+String allocations eliminated:
+  - BallRollStr pre-built: ~300/sec (per ball at timer rate)
+
+Redundant COM writes eliminated:
+  - FlipperTimer write guards (4 RotZ writes when idle)      = ~400/sec when flippers at rest
