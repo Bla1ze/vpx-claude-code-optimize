@@ -54,11 +54,11 @@ SetLocale 1033					' Force US format so math works out
 Const bUsePlungerForSternKey 	= False	' Defaults to Right Magna Button but you can use Plunger button also	
 Const kBallSearchEnabled 		= True	'  Do ball search if ball gets lost 
 Const kBallSearchTimeout 		= 20000	'  Start ball search after 18 seconds of no activity
-Const FreePlay					= False	' Coins or not
-Const Music8Bit					= True  ' Use 8Bit version of Music (View README.txt in pup music dir to get original songs)
+Const FreePlay					= True	' Coins or not
+Const Music8Bit					= False  ' Use 8Bit version of Music (View README.txt in pup music dir to get original songs)
 Const HasRealTiltBob			= 0 	' 0=No Tilt Bob, 1=Real TiltBob
 Const AttractSilent	= 0					' 0 = audio and DOF played during attract sequence, 1 = no audio and no DOF during attract sequence(after first play)
-Const kMaxSongs=14						' To Add Songs Drop Song in the Music dir, add a new image to "SongSelection" dir and then update the UpdateDMDSong function.
+Const kMaxSongs=15						' To Add Songs Drop Song in the Music dir, add a new image to "SongSelection" dir and then update the UpdateDMDSong function.
 Const StagedFlipperMod 			= 0 	' 0 = not staged, 1 - staged (dual leaf switches)
 Const ColorizeModeInserts		= False	' Nice mod that colors the mode inserts 
 Const OutlaneDifficulty			= 1		' 0=Hard, 1=Medium, 2=Easy : Moves outlane pegs
@@ -71,7 +71,7 @@ Const     ScorbitAlternateUUID		= 0 	' Force Alternate UUID from Windows Machine
 Const bUseFlex=False					' Enable Flex DMD (Depricated - not tested)
 Const KeepLogs=False 					' Set True to save debug log file (Testers Only)
 '*************************** ----General Sound Options---- ******************************
-Const VolumeDial = 0.8				' Recommended values should be no greater than 1.
+Const VolumeDial = 0.5				' Recommended values should be no greater than 1.
 
 '*************************** ----VR Options---- ******************************
 Const VRRoomChoice				= 1		' 1 = BaSti Room, 2 = Minimal Room
@@ -129,7 +129,7 @@ Randomize
 
 Const BallSize = 50       ' 50 is the normal size used in the core.vbs, VP kicker routines uses this value divided by 2
 Const BallMass = 1       ' standard mass (needed for nFozzy physics to work properly)
-Const SongVolume = 0.3   ' 1 is full volume.
+Const SongVolume = 0.2   ' 1 is full volume.
 
 
 '***********TABLE VOLUME LEVELS ********* 
@@ -650,8 +650,8 @@ Sub DMDSettingsInit()
 	DMDStd(kDMDStd_TiltDebounce)=1000		' 1 second debounce
 	DMDStd(kDMDStd_MatchPCT)=9				' 9%
 	DMDStd(kDMDStd_LeftStartReset)=True		' Allow Left + Start to Reset the Game (True, False, FreePlay)
-	DMDStd(kDMDStd_BallSave) = 5			' 5 second ball save 
-	DMDStd(kDMDStd_BallSaveExtend) = 2000	' Time to pause ball save when triggers are hit (Custom)
+	DMDStd(kDMDStd_BallSave) = 3			' 3 second ball save 
+	DMDStd(kDMDStd_BallSaveExtend) = 1000	' Time to pause ball save when triggers are hit (Custom)
 	DMDStd(kDMDStd_ReplayType)=1			' Extra Game, Extra Ball
 	DMDStd(kDMDStd_DynReplayStart)=125000000' Replay Value 
 	DMDStd(kDMDStd_ReplayPct) = 10  		' Replay Percent
@@ -3205,6 +3205,7 @@ Sub SelectSong(keycode)
     End If
 
 	if bAnimate then 
+		saveSong(CurrentPlayer)=Songnr
 		puPlayer.LabelSet pDMdFull, "SongSelectC", "PupOverlays\\clear.png",1,"{'mt':2,'color':0,'width':28, 'height':48, 'xpos':19 ,'ypos':15}"
 		tmrSongSelectAni_Type=0
 		tmrSongSelectAni.UserValue = 0
@@ -3339,8 +3340,6 @@ Sub UpdateDMDSong() 'Updates the DMD with the chosen song
 	if SongL<0 then SongL=kMaxSongs
 	if SongR>kMaxSongs then SongR=0
 
-	SelectMusic(Songnr)
-
 	puPlayer.LabelSet pTransp, "SongSelectLT", "SongSelection\\s" & SongL  &".png",1,"{'mt':2,'color':0,'width':18, 'height':31, 'xpos':4 ,'ypos':25}"
 	puPlayer.LabelSet pDMdFull, "SongSelectC", "SongSelection\\s" & Songnr  &".png",1,"{'mt':2,'color':0,'width':28, 'height':48, 'xpos':19 ,'ypos':15}"
 	puPlayer.LabelSet pTransp, "SongSelectRT", "SongSelection\\s" & SongR  &".png",1,"{'mt':2,'color':0,'width':18, 'height':31, 'xpos':45 ,'ypos':25}"
@@ -3353,9 +3352,7 @@ WriteToLog "     ", "ShowSongSelect:" & PlayersPlayingGame
 
 	SceneGeneralStart pDMDFull, True, False, "SongSelection", "SongSelect.mp4", "I:SongSelection\\UseFlippers.png^^^^^^^^^", "^^^^^^^^^"
 	bSongSelect=True
-	if balls=1 and bInstantInfo=False then 					' 1st ball randomly pick a song, unless we are on instant info
-		Songnr = INT(RND * kMaxSongs)
-	End if 
+	Songnr=saveSong(CurrentPlayer)
 	UpdateDMDSong	
 	If PlayersPlayingGame = 1 Then 
 		pupevent 511
@@ -3367,6 +3364,12 @@ WriteToLog "     ", "ShowSongSelect:" & PlayersPlayingGame
 		pupevent 541
 	End If
 
+End Sub
+
+Sub ExitSongSelection()
+	saveSong(CurrentPlayer)=Songnr
+	SelectMusic(Songnr)
+	StopSongSelect
 End Sub
 
 Sub StopSongSelect()
@@ -3528,10 +3531,10 @@ Sub GiOn
 	target006p.Opacity=0:			target006p_gioff.Visible = True 
 '	cab_gion.Opacity=0:				cab_gioff.Visible = True 
 
-	GIFadeOpacity = 0
-	tmrGIFade.UserValue=1		' Fade On
+	GIFadeOpacity = 0				  
+	tmrGIFade.UserValue=1		' Fade On 
 	tmrGIFade.Interval = 6
-	tmrGIFade.Enabled = True
+	tmrGIFade.Enabled = True 
 
 	LBumper2.state=1
 	LBumper3.state=1
@@ -3998,6 +4001,7 @@ Sub RollingUpdate()
 			rolling(b) = False
 			StopSound BallRollStr(b)
 			StopSound MetalRollStr(b)
+								   
 		End if
         aBallShadow(b).Y = 3000
 		If aBallShadow(b).Visible Then aBallShadow(b).Visible = False
@@ -4021,7 +4025,7 @@ Sub RollingUpdate()
 		bvlx = BOT(b).VelX : bvly = BOT(b).VelY
 		bvel = INT(SQR(bvlx * bvlx + bvly * bvly))
 
-        If bvel > 1 Then
+        If bvel > 1 Then				   
             rolling(b) = True
 			' Inline sound params using cached bvel
 			bvol = RollingSoundFactor * 0.0005 * Csng(bvel * bvel * bvel) * (cVolTable + 0.1) * VolumeDial
@@ -4046,12 +4050,12 @@ Sub RollingUpdate()
 			End if
 
         Else
-            If rolling(b) = True Then
+            If rolling(b) = True Then												
 				StopSound BallRollStr(b)
                 rolling(b) = False
             End If
         End If
-
+		
 		' Ball Drop Sounds
 		If BOT(b).VelZ < -1 and BOT(b).z < 55 and BOT(b).z > 27 Then 'height adjust for ball drop sounds
 			If BallDropCount(b) >= 5 Then
@@ -4103,10 +4107,12 @@ Sub ResetForNewGame()
     PlayersPlayingGame = 1
 	UpdatePlayers
     bOnTheFirstBall = True
+	Songnr = INT(RND * kMaxSongs)
     For i = 0 To MaxPlayers-1
 		ScoreSave(i)=0
 		LastScore(i)=0
         Score(i) = 0
+		saveSong(i)=Songnr
 		bReplayAwarded(i)=False
         BonusPoints(i) = 0
         BonusHeldPoints(i) = 0
@@ -5013,7 +5019,7 @@ Sub swPlungerRest_UnHit()' This means the trigger is up because ball has been fi
     swPlungerRest.TimerEnabled = 0 'stop the launch ball timer if active
     If bSkillShotReady Then
 		
-		StopSongSelect
+		ExitSongSelection
 		ResetSkillShotTimer.UserValue=0
         ResetSkillShotTimer.Enabled = 1
 		ScorbitClaimQR(False)
@@ -6956,8 +6962,9 @@ Flip1LStartAngle = LeftFlipper1.StartAngle
 Sub Realtime_Timer
     RollingUpdate					'update rolling sounds
 	DoDTAnim 						'handle drop target animations
+	
 	primRamp007.rotx=90+UnderworldFlipper.currentangle
-
+	
 	' Cache currentangle into locals — each COM read used by 2 prims
 	Dim rfCA : rfCA = RightFlipper.currentangle
 	Dim lfCA : lfCA = LeftFlipper.currentangle
@@ -7197,8 +7204,11 @@ Sub LampTimer1_Timer()
 			tmp = Lampz.obj(idx)
 			Lampz.state(idx) = tmp(0).GetInPlayStateBool
 		Else
+	   
+														
 			Lampz.state(idx) = Lampz.obj(idx).GetInPlayStateBool
 		End If
+		
 	Next
 	Lampz.Update1	'update (fading logic only)
 End Sub
@@ -8459,7 +8469,6 @@ Sub SetFlash(MyLamp, nr, TotalPeriod, BlinkPeriod) 'similar to FlashForms, works
     MyLamp.TimerEnabled = 0
     MyLamp.TimerEnabled = 1
 'WriteToLog "     ", "Sub " & MyLamp.Name & "_Timer:" & "SetLamp (me.UserValue - INT(me.UserValue))*100, me.UserValue MOD 2:me.UserValue= me.UserValue -1:If me.UserValue < 0 then Me.TimerEnabled=0:End If:End Sub"
-
     ExecuteGlobal "Sub " & MyLamp.Name & "_Timer:" & "SetLamp 100*(" & MyLamp.Name & ".UserValue - INT(" & MyLamp.Name & ".UserValue)), " & MyLamp.Name & ".UserValue MOD 2:" & MyLamp.Name & ".UserValue= " & MyLamp.Name & ".UserValue -1:If " & MyLamp.Name & ".UserValue < 0 then " & MyLamp.Name & ".TimerEnabled=0:End If:End Sub"
 End Sub
 
@@ -8788,8 +8797,7 @@ Sub SetLightColorRGB(n, cRed, cGreen, cBlue, fRed, fGreen, fBlue) ' n = light, c
 	If IsEmpty(vL) OR IsEmpty(pL) Then
 		'debug.print "SetLightColorRGB: v" & n.name & " = " & TypeName(vL) & " p" & n.name & " = " & TypeName(pL)
 		exit sub
-	End If
-
+	End If								   
 	vL.color = RGB(cRed, cGreen, cBlue)
 	vL.colorfull = RGB(fRed, fGreen, fBlue)
 	UpdateMaterial pL.material,0,0,0,0,0,0,1,RGB(fRed, fGreen, fBlue),0,0,False,True,0,0,0,0
@@ -8862,12 +8870,12 @@ End Sub
 
 Dim RGBStep, RGBFactor, rRed, rGreen, rBlue, RainbowLights,RainbowMode:RainbowMode=-1
 Dim myRainbowCollection
-Dim MyRainboxIdx
+Dim MyRainboxIdx 
 
 'StartRainbowMode kModeTrooper, kLightRampCenter
 Sub StartRainbowMode(mode, lIndex) 'uses a collection as parameter
-	RainbowMode=mode
-
+	RainbowMode=mode 
+	
 	set myRainbowCollection=new cvpmDictionary
 	myRainbowCollection.Add LightMap(lIndex), 0
 	SSetLightColor mode, lIndex, white, 1
@@ -8945,16 +8953,16 @@ Sub RainbowTimer_Timer 'rainbow led light color changing
                 RGBStep = 0
             End If
     End Select
-	if RainbowMode=-1 then
+	if RainbowMode=-1 then 
 		For each obj in RainbowLights
 			obj.color = RGB(rRed \ 10, rGreen \ 10, rBlue \ 10)
 			obj.colorfull = RGB(rRed, rGreen, rBlue)
 		Next
-	else
+	else 
 		For each obj in RainbowLights.keys
 			SetLightColorRGB obj, rRed \ 10, rGreen \ 10, rBlue \ 10, rRed, rGreen, rBlue
 		Next
-	End if
+	End if 
 End Sub
 
 
@@ -11367,34 +11375,36 @@ End Sub
 
 Sub tmrNewton1_Timer()
 	tmrNewton1.UserValue=tmrNewton1.UserValue+1
-	if tmrNewton1.UserValue<=4 then
+	if tmrNewton1.UserValue<=4 then 
 		primNBall1.transX=primNBall1.transx+1
 		primNBall1.transZ=primNBall1.transz-1
 	elseif tmrNewton1.UserValue<=8 then
 		primNBall1.transX=primNBall1.transx-1
 		primNBall1.transZ=primNBall1.transz+1
-	Else
+	Else 
 		primNBall1.transX=0
 		primNBall1.transZ=0
 		tmrNewton1.Enabled = False
-	End if
-End Sub
+	End if 
+
+End Sub 
 
 
 Sub tmrNewton2_Timer()
 	tmrNewton2.UserValue=tmrNewton2.UserValue+1
-	if tmrNewton2.UserValue<=6 then
+	if tmrNewton2.UserValue<=6 then 
 		primNBall2.transX=primNBall2.transx+0.25
 		primNBall2.transZ=primNBall2.transz-1
 	elseif tmrNewton2.UserValue<=12 then
 		primNBall2.transX=primNBall2.transx-0.25
 		primNBall2.transZ=primNBall2.transz+1
-	Else
+	Else 
 		primNBall2.transX=0
 		primNBall2.transZ=0
 		tmrNewton2.Enabled = False
-	End if
-End Sub
+	End if 
+
+End Sub 
 
 
 ' NOTE you can hit this from the side????
@@ -13354,8 +13364,8 @@ Sub tmrMummyCycle_Timer()
 			lMummyM3.state = 1
 		case 5:
 			lMummyY.state = 1
-	End Select
-End Sub
+	End Select 
+End Sub 
 
 Dim CycleMummyInsertsStates(5)
 Sub CycleMummyInsertsState(bEnable)			' Enable/Disasble the strobing of the mummy inserts (Save states and restore when done)
@@ -13398,7 +13408,7 @@ Sub tmrMummyCycleState_Timer()
 			lMummyM3.state = 2
 		case 5:
 			lMummyY.state = 2
-	End Select
+	End Select 
 End Sub
 
 Sub AddMummyletter
@@ -18022,9 +18032,9 @@ pScorePosLabel(2) = "ScorePos3" : pScorePosLabel(3) = "ScorePos4"
 Sub pUpdateScores
 	Dim PlayerName
 	if pDMDCurPage <> pScores then Exit Sub
-
+	
 Dim NextPlayer:NextPlayer = CurrentPlayer + 1
-	If bShowMatch=False then
+	If bShowMatch=False then													  
 	End if
 
 	' Set the score and color of the other players score
@@ -20879,7 +20889,7 @@ End Sub
 '*********
 dim PupQueue(4, 20, 4)		' QueueNum,   Size=20,  Fields are 0=Command, 1=Priority, 2=time, 3=MustRun
 dim PupQueueEndPos(4)		' Size of each queue (-1 = Empty)
-dim QueueActive(4)			' We are actively running something
+dim QueueActive(4)			' We are actively running something 
 Dim QueueCurrentTime(4)		' How much time is this one going to run (Just used for getting the queue time)
 Dim PupQueueDefault(4)		' Default function to run when the queue is empty
 Dim PupQueueDefaultClear(4)		' Default function to run when a new item it added to the queue
@@ -20916,17 +20926,17 @@ End Sub
 Sub QueueStartDefault()
 	Dim queueIdx:queueIdx=0
 
-	if PupQueueDefault(queueIdx)<>"" and PupQueueDefaultClear(queueIdx)	<>"" then	' clear the default if there is one
+	if PupQueueDefault(queueIdx)<>"" and PupQueueDefaultClear(queueIdx)	<>"" then	' clear the default if there is one 
 WriteToLog "     ", "Execute Clear:" & PupQueueDefaultClear(queueIdx)
 		Execute PupQueueDefaultClear(queueIdx)
-	End if
+	End if 
 
 WriteToLog "     ", "Queue Empty Deactivated: " & PupQueueDefault(queueIdx)
 	if PupQueueDefault(queueIdx)<>"" then 		' Run the default item
 		Execute PupQueueDefault(queueIdx)
-	End if
+	End if 
 
-End Sub
+End Sub 
 
 Sub QueueFlush(queueIdx)
 	QueueFlushForce queueIdx, False 
@@ -20936,7 +20946,7 @@ Sub QueueFlushForce(queueIdx, bForce)
 	dim xx
 	dim nextFree
 WriteToLog "     ", "QueueFlush: " & queueIdx & " " & bForce
-
+	
 	nextFree=-1
 	for xx = 0 to PupQueueEndPos(queueIdx)
 		if PupQueue(queueIdx, xx, 3)=True then		' MustRun=True,  keep it 
@@ -20989,7 +20999,7 @@ End Function
 
 
 Sub QueuePop(queueIdx)
-	if PupQueueEndPos(queueIdx) = -1 then exit sub
+	if PupQueueEndPos(queueIdx) = -1 then exit sub 
 	PupQueue(queueIdx, 0, 1 )=99
 	SortPupQueue queueIdx
 	PupQueue(queueIdx, PupQueueEndPos(queueIdx),0 )=""
@@ -21070,7 +21080,7 @@ Sub RunQueue(queueIdx, bNewItem)
 WriteToLog "     ", "Run Queue " &  queueIdx & " " & QueueActive(queueIdx) & " " & bNewItem & " " & Now
 	if QueueActive(queueIdx) = False or bNewItem=False then 	' Nothing is running Or we just finished running something 
 		if PupQueueEndPos(queueIdx) <> -1 then
-			if PupQueueDefault(queueIdx)<>"" and QueueActive(queueIdx)=False and PupQueueDefaultClear(queueIdx)	<>"" then	' clear the default if there is one
+			if PupQueueDefault(queueIdx)<>"" and QueueActive(queueIdx)=False and PupQueueDefaultClear(queueIdx)	<>"" then	' clear the default if there is one 
 WriteToLog "     ", "Execute Clear:" & PupQueueDefaultClear(queueIdx)
 				Execute PupQueueDefaultClear(queueIdx)
 			End if
@@ -21078,8 +21088,8 @@ WriteToLog "     ", "Execute Clear:" & PupQueueDefaultClear(queueIdx)
 			qCmd=PupQueue(queueIdx, 0, 0)
 			qTime=PupQueue(queueIdx, 0, 2)
 WriteToLog "     ", "Exec " & qCmd
-'			on error resume next
-			PupQueue(queueIdx, 0, 3)=True		' Set MustRun to True so it cant get deleted while running
+'			on error resume next 
+			PupQueue(queueIdx, 0, 3)=True		' Set MustRun to True so it cant get deleted while running 
 			Execute qCmd
 '			if err.number <> 0 then MSGBox "EXEC Err: " & qCmd
 '			On Error goto 0
@@ -21101,8 +21111,8 @@ WriteToLog "     ", "Queue Empty Deactivated: " & PupQueueDefault(queueIdx)
 			QueueActive(queueIdx) = False
 			if PupQueueDefault(queueIdx)<>"" then 		' Run the default item
 				Execute PupQueueDefault(queueIdx)
-			End if
-		End If
+			End if 
+		End If 
 	End if
 End Sub
 
@@ -21110,7 +21120,7 @@ Sub SortPupQueue(queueIdx)
 	dim a, j, temp1, temp2, temp3, temp4
 	for a = PupQueueEndPos(queueIdx) - 1 To 0 Step -1
 		for j= 0 to a
-			if PupQueue(queueIdx, j, 1)>PupQueue(queueIdx, j+1, 1) then		' Sort by priority
+			if PupQueue(queueIdx, j, 1)>PupQueue(queueIdx, j+1, 1) then		' Sort by priority 
 				temp1=PupQueue(queueIdx, j+1,0 )
 				temp2=PupQueue(queueIdx, j+1,1 )
 				temp3=PupQueue(queueIdx, j+1,2 )
@@ -21125,7 +21135,7 @@ Sub SortPupQueue(queueIdx)
 				PupQueue(queueIdx, j, 3 )=temp4
 			end if
 		next
-	next
+	next 
 
 End Sub
 
@@ -21637,6 +21647,7 @@ Sub FlipperNudge(BOT, Flipper1, Endangle1, EOSNudge1, Flipper2, EndAngle2)
 
 	If f1ca = Endangle1 and EOSNudge1 <> 1 Then
 		EOSNudge1 = 1
+																											 
 		If Flipper2.currentangle = EndAngle2 Then
 			Dim bx, by
 			For b = 0 to Ubound(BOT)
@@ -22933,7 +22944,6 @@ WriteToLog "     ", "PlayMedia " & channel & " Dir:" & playlist & " File:" & nam
 		PuPlayer.SendMSG "{ ""mt"":301, ""SN"": "&pMusic&", ""FN"":11, ""VL"":"&VolMusic&" }"
 		'WriteToLog "     ", "turnitbackupcine "
 	End Sub
-
 
 	sub holder
 	end sub
